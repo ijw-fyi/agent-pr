@@ -1,0 +1,3 @@
+
+[2026-01-20T19:59:27.712Z]
+Don't flag Gemini API's codeExecution tool as a security risk - it executes on Google's servers, not locally
