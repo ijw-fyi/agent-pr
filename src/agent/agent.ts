@@ -34,6 +34,11 @@ export async function runReview(context: PRContext): Promise<void> {
     console.log(`Tools available: ${tools.map(t => t.name).join(", ")}`);
     console.log("=".repeat(60));
 
+    console.log("\n📝 User Context Message:");
+    console.log("─".repeat(60));
+    console.log(contextMessage);
+    console.log("─".repeat(60));
+
     // Stream the agent execution to log each step
     let stepCount = 0;
     const stream = await agent.stream({
