@@ -37,13 +37,21 @@ export async function readPreferences(
         }
         return "";
     } catch (error) {
-        // Branch or file doesn't exist yet
-        if (error instanceof Error && error.message.includes("Not Found")) {
-            return "";
+        // Branch or file doesn't exist yet - handle various error patterns
+        if (error instanceof Error) {
+            const msg = error.message.toLowerCase();
+            if (
+                msg.includes("not found") ||
+                msg.includes("no commit found") ||
+                msg.includes("404")
+            ) {
+                return "";
+            }
         }
         throw error;
     }
 }
+
 
 /**
  * Write preferences to the __agent_pr__ branch.

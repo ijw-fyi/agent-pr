@@ -11,13 +11,13 @@ Extract preferences that are:
 - **Explicit statements** like "I prefer X over Y" or "Don't flag this pattern"
 - **Strong implications** where the user disagrees with a suggestion in a way that reveals their style
 - **Team/project conventions** mentioned by the user
+- **Factual corrections** where the user corrects a misunderstanding about the codebase, architecture, or requirements
 
 ## What NOT to Extract
 Do NOT store:
 - One-time exceptions ("this is just for debugging")
 - Acknowledgments without preference ("thanks, fixed it")
 - Questions or clarifications
-- Disagreements about facts (not style)
 
 ## Output Format
 If you find a preference, use the store_preference tool with a clear, reusable statement like:
