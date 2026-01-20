@@ -1,18 +1,32 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { readFileTool } from "./read-file.js";
-import { searchWebTool } from "./search-web.js";
+import { searchWebTool, isWebSearchAvailable } from "./search-web.js";
 import { leaveCommentTool } from "./leave-comment.js";
 import { submitReviewTool } from "./submit-review.js";
 
 /**
+ * Get built-in tools available to the agent
+ * Some tools are conditionally included based on environment configuration
+ */
+function getBuiltInTools(): StructuredToolInterface[] {
+    const tools: StructuredToolInterface[] = [
+        readFileTool,
+        leaveCommentTool,
+        submitReviewTool,
+    ];
+
+    // Only include web search tool if GEMINI_API_KEY is available
+    if (isWebSearchAvailable()) {
+        tools.push(searchWebTool);
+    }
+
+    return tools;
+}
+
+/**
  * All built-in tools available to the agent
  */
-export const builtInTools: StructuredToolInterface[] = [
-    readFileTool,
-    searchWebTool,
-    leaveCommentTool,
-    submitReviewTool,
-];
+export const builtInTools: StructuredToolInterface[] = getBuiltInTools();
 
 /**
  * Combined tools array (built-in + MCP tools)
@@ -26,4 +40,3 @@ export let tools: StructuredToolInterface[] = [...builtInTools];
 export function addMCPTools(mcpTools: StructuredToolInterface[]): void {
     tools = [...builtInTools, ...mcpTools];
 }
-

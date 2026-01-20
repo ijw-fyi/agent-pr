@@ -1,19 +1,71 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 /**
- * Placeholder tool for web search
- * TODO: Implement actual web search functionality
+ * Tool for web search using Gemini API with Google Search grounding
  */
 export const searchWebTool = tool(
     async ({ query }) => {
-        // Placeholder implementation
-        return `Web search is not yet implemented. Query was: "${query}"\n\nPlease rely on the repository context and your training knowledge for now.`;
+        const apiKey = process.env.GEMINI_API_KEY;
+
+        if (!apiKey) {
+            return `Web search is not available. GEMINI_API_KEY is not configured.`;
+        }
+
+        try {
+            const ai = new GoogleGenAI({ apiKey });
+
+            const config = {
+                thinkingConfig: {
+                    thinkingLevel: ThinkingLevel.MEDIUM,
+                },
+                tools: [
+                    { urlContext: {} },
+                    { codeExecution: {} },
+                    { googleSearch: {} },
+                ],
+            };
+
+            const response = await ai.models.generateContent({
+                model: "gemini-3-flash-preview",
+                config,
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            {
+                                text: `Search the web for the following query and provide a comprehensive summary of the results. Focus on the most relevant and recent information.\n\nQuery: ${query}`,
+                            },
+                        ],
+                    },
+                ],
+            });
+
+            // Extract text from response
+            const candidate = response.candidates?.[0];
+            if (!candidate?.content?.parts) {
+                return `No search results found for: "${query}"`;
+            }
+
+            const textParts = candidate.content.parts
+                .filter((part: { text?: string }) => part.text)
+                .map((part: { text?: string }) => part.text)
+                .join("\n");
+
+            if (!textParts) {
+                return `No search results found for: "${query}"`;
+            }
+
+            return `Web search results for "${query}":\n\n${textParts}`;
+        } catch (error) {
+            return `Error performing web search: ${error instanceof Error ? error.message : "Unknown error"}`;
+        }
     },
     {
         name: "search_web",
         description:
-            "Search the web for information. (Note: This is a placeholder and will be implemented later)",
+            "Search the web for information using Google Search. Use this to find documentation, best practices, or context about libraries and technologies.",
         schema: z.object({
             query: z
                 .string()
@@ -21,3 +73,10 @@ export const searchWebTool = tool(
         }),
     }
 );
+
+/**
+ * Check if web search is available (GEMINI_API_KEY is set)
+ */
+export function isWebSearchAvailable(): boolean {
+    return !!process.env.GEMINI_API_KEY;
+}
