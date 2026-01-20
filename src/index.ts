@@ -80,6 +80,18 @@ async function runReviewMode(
     console.log(`Starting PR review for ${owner}/${repo}#${prNumber}`);
     console.log(`Using model: ${model}`);
 
+    // Add eyes reaction to the triggering comment to show we've started
+    const triggerCommentId = process.env.TRIGGER_COMMENT_ID;
+    if (triggerCommentId) {
+        const { addReactionToComment } = await import("./context/github.js");
+        try {
+            await addReactionToComment(owner, repo, parseInt(triggerCommentId, 10), "eyes");
+            console.log("Added 👀 reaction to trigger comment");
+        } catch (error) {
+            console.warn("Could not add reaction to comment:", error);
+        }
+    }
+
     // Initialize MCP clients and add their tools
     await initMCPClients();
     const mcpTools = await getMCPTools();

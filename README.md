@@ -72,6 +72,7 @@ jobs:
           REPO_NAME: ${{ github.event.repository.name }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
 
   pr_code_message:
     # Run when someone replies to a review comment (not the initial /review command)

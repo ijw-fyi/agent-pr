@@ -282,3 +282,20 @@ export async function replyToReviewComment(
         body,
     });
 }
+
+/**
+ * Add a reaction to an issue comment
+ */
+export async function addReactionToComment(
+    owner: string,
+    repo: string,
+    commentId: number,
+    reaction: "+1" | "-1" | "laugh" | "confused" | "heart" | "hooray" | "rocket" | "eyes"
+): Promise<void> {
+    await octokit.rest.reactions.createForIssueComment({
+        owner,
+        repo,
+        comment_id: commentId,
+        content: reaction,
+    });
+}
