@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0
       
       - name: Run PR Review Agent
-        uses: ijw-fyi/agent-pr@v1.6.0-dev.2
+        uses: ijw-fyi/agent-pr@v1.6.0-dev.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
