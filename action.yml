@@ -1,0 +1,24 @@
+name: 'PR Review Agent'
+description: 'AI-powered PR review agent that provides inline code review comments'
+author: 'Stefan'
+
+inputs:
+  openrouter_key:
+    description: 'OpenRouter API key'
+    required: true
+  model:
+    description: 'Model to use (e.g., anthropic/claude-4.5-sonnet)'
+    required: true
+    default: 'anthropic/claude-4.5-sonnet'
+  mcp_config:
+    description: 'JSON configuration for MCP servers. DeepWiki is included by default.'
+    required: false
+    default: '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}'
+
+runs:
+  using: 'node20'
+  main: 'action/index.js'
+
+branding:
+  icon: 'code'
+  color: 'purple'
