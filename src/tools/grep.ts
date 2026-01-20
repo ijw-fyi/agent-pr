@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { glob } from "glob";
+// @ts-ignore
 import safeRegex from "safe-regex2";
 
 /**
@@ -58,6 +59,8 @@ export const grepTool = tool(
                 }
 
                 try {
+                    // Debug: Log file being scanned
+                    console.log(`Debug: scanning ${contextPath}`);
                     const stats = await fs.stat(contextPath);
                     // Check file size
                     if (stats.size > MAX_FILE_SIZE) continue;
@@ -127,6 +130,7 @@ export const grepTool = tool(
                     }
 
                 } catch (err) {
+                    console.log(`Debug: error reading ${filePath}: ${err}`);
                     // Ignore read errors
                 }
             }
