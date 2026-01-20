@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { initGitHub, gatherPRContext } from "./context/github.js";
+import { initGitHub, gatherPRContext, addReactionToComment } from "./context/github.js";
 import { runReview } from "./agents/review/index.js";
 import { runPreferenceAgent } from "./agents/code-comment/index.js";
 import type { PreferenceContext } from "./agents/code-comment/index.js";
@@ -83,7 +83,6 @@ async function runReviewMode(
     // Add eyes reaction to the triggering comment to show we've started
     const triggerCommentId = process.env.TRIGGER_COMMENT_ID;
     if (triggerCommentId) {
-        const { addReactionToComment } = await import("./context/github.js");
         try {
             await addReactionToComment(owner, repo, parseInt(triggerCommentId, 10), "eyes");
             console.log("Added 👀 reaction to trigger comment");
