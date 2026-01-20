@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { glob } from "glob";
+// @ts-ignore
 import safeRegex from "safe-regex2";
 
 /**
@@ -37,11 +38,13 @@ export const grepTool = tool(
             }
 
             // Find files using glob
+            console.log(`Debug: searching in ${process.cwd()} with pattern ${globPattern}`);
             const files = await glob(globPattern, {
-                ignore: ["**/node_modules/**", "**/.git/**"],
+                ignore: ["**/node_modules/**", "**/.git/**", "./build/**", "./dist/**", "./action/**"],
                 nodir: true,
                 dot: true
             });
+            console.log(`Debug: found ${files.length} files`);
 
             for (const filePath of files) {
                 if (results.length >= MAX_RESULTS) break;
