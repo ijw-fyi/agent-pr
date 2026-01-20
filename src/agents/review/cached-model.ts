@@ -58,12 +58,23 @@ function patchOpenAIClient(client: any) {
     client.chat.completions.create = async function (params: any, options?: any) {
         console.log("🔄 Sending request with prompt caching");
 
+        // Find the last user message index
+        const messages = params.messages as any[];
+        let lastUserIndex = -1;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === "user") {
+                lastUserIndex = i;
+                break;
+            }
+        }
+
         // Inject cache_control into messages
-        const modifiedMessages = (params.messages as any[]).map((msg: any, index: number) => {
-            // Cache system (index 0) and first user message (index 1)
+        const modifiedMessages = messages.map((msg: any, index: number) => {
+            // Cache: system (index 0), first user (index 1), and last user message
             const shouldCache =
                 (msg.role === "system" && index === 0) ||
-                (msg.role === "user" && index === 1);
+                (msg.role === "user" && index === 1) ||
+                (msg.role === "user" && index === lastUserIndex && index > 1);
 
             if (shouldCache) {
                 // For string content, wrap it in array format with cache_control

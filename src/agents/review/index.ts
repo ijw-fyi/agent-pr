@@ -84,12 +84,15 @@ export async function runReview(
                         console.log(`  Input: ${usage.input_tokens || usage.prompt_tokens || 'N/A'}`);
                         console.log(`  Output: ${usage.output_tokens || usage.completion_tokens || 'N/A'}`);
 
-                        // Cache stats (Claude prompt caching)
-                        if (usage.cache_creation_input_tokens !== undefined) {
-                            console.log(`  Cache Write: ${usage.cache_creation_input_tokens} tokens`);
+                        // Cache stats - check both OpenRouter format and Anthropic format
+                        const cacheWrite = usage.prompt_tokens_details?.cache_write_tokens || usage.cache_creation_input_tokens;
+                        const cacheRead = usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens;
+
+                        if (cacheWrite !== undefined && cacheWrite > 0) {
+                            console.log(`  Cache Write: ${cacheWrite} tokens`);
                         }
-                        if (usage.cache_read_input_tokens !== undefined) {
-                            console.log(`  Cache Read: ${usage.cache_read_input_tokens} tokens ✨`);
+                        if (cacheRead !== undefined && cacheRead > 0) {
+                            console.log(`  Cache Read: ${cacheRead} tokens ✨`);
                         }
                     }
                 }
