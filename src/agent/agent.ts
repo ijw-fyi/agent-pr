@@ -34,6 +34,11 @@ export async function runReview(context: PRContext): Promise<void> {
     console.log(`Tools available: ${tools.map(t => t.name).join(", ")}`);
     console.log("=".repeat(60));
 
+    console.log("\n📝 User Context Message:");
+    console.log("─".repeat(60));
+    console.log(contextMessage);
+    console.log("─".repeat(60));
+
     // Stream the agent execution to log each step
     let stepCount = 0;
     const stream = await agent.stream({
@@ -124,6 +129,16 @@ ${context.existingComments.map((c) => `- **${c.author}** on \`${c.path}\`: ${c.b
         message += `
 ## PR Conversation
 ${context.conversation.map((c) => `- **${c.author}**: ${c.body}`).join("\n")}
+`;
+    }
+
+    if (context.preferences) {
+        message += `
+## User Preferences
+The following preferences have been learned from previous interactions. Please respect these when reviewing:
+\`\`\`
+${context.preferences}
+\`\`\`
 `;
     }
 

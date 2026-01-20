@@ -16,7 +16,7 @@ inputs:
     default: '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}'
 
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'action/index.js'
 
 branding:

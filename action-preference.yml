@@ -1,0 +1,20 @@
+name: 'PR Review Agent - Preference Learning'
+description: 'Extracts user preferences from inline comment replies'
+author: 'Stefan'
+
+inputs:
+  openrouter_key:
+    description: 'OpenRouter API key'
+    required: true
+  model:
+    description: 'Model to use (e.g., anthropic/claude-4.5-sonnet)'
+    required: true
+    default: 'anthropic/claude-4.5-sonnet'
+
+runs:
+  using: 'node24'
+  main: 'action-preference/index.js'
+
+branding:
+  icon: 'heart'
+  color: 'purple'
