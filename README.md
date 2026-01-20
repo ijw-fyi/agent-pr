@@ -28,6 +28,7 @@ on:
 
 jobs:
   review:
+    # Only run on PR comments that start with /review
     if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/review')
     runs-on: ubuntu-latest
     
@@ -37,10 +38,6 @@ jobs:
       issues: write
     
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
       - name: Get PR details
         id: pr
         uses: actions/github-script@v7
@@ -53,14 +50,22 @@ jobs:
             });
             core.setOutput('head_sha', pr.data.head.sha);
             core.setOutput('base_sha', pr.data.base.sha);
+            return pr.data;
+      
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_sha }}
+          fetch-depth: 0
       
       - name: Run PR Review Agent
-        uses: ijw-fyi/agent-pr@v1.1.0
+        uses: ijw-fyi/agent-pr@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
-          RECURSION_LIMIT: 100
+          MCP_CONFIG: ${{ vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
           ACTION_MODE: review
           PR_NUMBER: ${{ github.event.issue.number }}
           REPO_OWNER: ${{ github.repository_owner }}
@@ -68,19 +73,36 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
 
-  learn_preferences:
+  pr_code_message:
+    # Run when someone replies to a review comment (not the initial /review command)
     if: github.event_name == 'pull_request_review_comment' && github.event.action == 'created'
     runs-on: ubuntu-latest
     
     permissions:
-      contents: write
-      pull-requests: write
+      contents: write  # Needed to create/update __agent_pr__ branch
+      pull-requests: write  # Needed to leave notification comment
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Get PR details
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+            core.setOutput('head_sha', pr.data.head.sha);
+            return pr.data;
+      
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_sha }}
       
       - name: Run Preference Agent
-        uses: ijw-fyi/agent-pr@v1.1.0
+        uses: ijw-fyi/agent-pr@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
@@ -167,6 +189,7 @@ Preferences are stored per-repository and persist across PRs.
 | Tool | Description |
 |------|-------------|
 | `read_file` | Read file contents with optional line range |
+| `grep` | Search codebase for patterns (supports regex) |
 | `leave_comment` | Leave inline review comment on PR |
 | `submit_review` | Submit final review summary |
 | `search_web` | Search web for docs (requires `GEMINI_API_KEY`) |
