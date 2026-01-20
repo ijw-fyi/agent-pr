@@ -19,8 +19,14 @@ export async function gatherPreferenceContext(
         comment_id: commentId,
     });
 
-    if (!comment.in_reply_to_id && !comment.body) {
-        console.log("Comment is not a reply or has no body");
+    if (!comment.body) {
+        console.log("Comment has no body");
+        return null;
+    }
+
+    // Only process replies, not root comments
+    if (!comment.in_reply_to_id) {
+        console.log("Comment is not a reply");
         return null;
     }
 
