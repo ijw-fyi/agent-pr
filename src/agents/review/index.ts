@@ -1,8 +1,9 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
-import { SYSTEM_PROMPT } from "./prompt.js";
+import { getSystemPrompt } from "./prompt.js";
 import { tools } from "../../tools/index.js";
+import { isWebSearchAvailable } from "../../tools/search-web.js";
 import type { PRContext } from "../../context/types.js";
 
 /**
@@ -48,7 +49,7 @@ export async function runReview(
     const stream = await agent.stream(
         {
             messages: [
-                new SystemMessage(SYSTEM_PROMPT),
+                new SystemMessage(getSystemPrompt(isWebSearchAvailable())),
                 new HumanMessage(contextMessage),
             ],
         },
