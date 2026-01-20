@@ -1,9 +1,5 @@
 name: PR Review
 
-env:
-  # This anchor allows us to update the action version in one place
-  AGENT_ACTION_REF: &agent_action_ref ijw-fyi/agent-pr@v1.3.0-dev.1
-
 on:
   issue_comment:
     types: [created]
@@ -42,7 +38,7 @@ jobs:
             return pr.data;
       
       - name: Run PR Review Agent
-        uses: *agent_action_ref
+        uses: ijw-fyi/agent-pr@v1.3.0-dev.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
@@ -70,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Run Preference Agent
-        uses: *agent_action_ref
+        uses: ijw-fyi/agent-pr@v1.3.0-dev.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
