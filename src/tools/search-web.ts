@@ -57,7 +57,28 @@ export const searchWebTool = tool(
                 return `No search results found for: "${query}"`;
             }
 
-            return `Web search results for "${query}":\n\n${textParts}`;
+            // Extract sources from grounding metadata
+            const groundingMetadata = candidate.groundingMetadata;
+            const groundingChunks = groundingMetadata?.groundingChunks;
+
+            let sourcesText = "";
+            if (groundingChunks && groundingChunks.length > 0) {
+                const sources = groundingChunks
+                    .map((chunk: { web?: { uri?: string; title?: string } }, index: number) => {
+                        if (chunk.web?.uri) {
+                            const title = chunk.web.title || chunk.web.uri;
+                            return `[${index + 1}] ${title}: ${chunk.web.uri}`;
+                        }
+                        return null;
+                    })
+                    .filter(Boolean);
+
+                if (sources.length > 0) {
+                    sourcesText = `\n\nSources:\n${sources.join("\n")}`;
+                }
+            }
+
+            return `Web search results for "${query}":\n\n${textParts}${sourcesText}`;
         } catch (error) {
             return `Error performing web search: ${error instanceof Error ? error.message : "Unknown error"}`;
         }
