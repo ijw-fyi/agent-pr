@@ -8,7 +8,10 @@ import type { PRContext } from "../../context/types.js";
 /**
  * Run the PR review agent with the given context
  */
-export async function runReview(context: PRContext): Promise<void> {
+export async function runReview(
+    context: PRContext,
+    recursionLimit: number = 100
+): Promise<void> {
     // Create the model with OpenRouter backend
     const model = new ChatOpenAI({
         modelName: process.env.MODEL!,
@@ -31,6 +34,7 @@ export async function runReview(context: PRContext): Promise<void> {
     console.log("Starting PR Review Agent");
     console.log("=".repeat(60));
     console.log(`Model: ${process.env.MODEL}`);
+    console.log(`Recursion Limit: ${recursionLimit}`);
     console.log(`Tools available: ${tools.map(t => t.name).join(", ")}`);
     console.log("=".repeat(60));
 
@@ -41,12 +45,17 @@ export async function runReview(context: PRContext): Promise<void> {
 
     // Stream the agent execution to log each step
     let stepCount = 0;
-    const stream = await agent.stream({
-        messages: [
-            new SystemMessage(SYSTEM_PROMPT),
-            new HumanMessage(contextMessage),
-        ],
-    });
+    const stream = await agent.stream(
+        {
+            messages: [
+                new SystemMessage(SYSTEM_PROMPT),
+                new HumanMessage(contextMessage),
+            ],
+        },
+        {
+            recursionLimit,
+        }
+    );
 
     for await (const chunk of stream) {
         stepCount++;

@@ -26,8 +26,12 @@ export interface PreferenceContext {
 /**
  * Run the preference extraction agent
  */
+/**
+ * Run the preference extraction agent
+ */
 export async function runPreferenceAgent(
-    context: PreferenceContext
+    context: PreferenceContext,
+    recursionLimit: number = 100
 ): Promise<void> {
     // Create the model with OpenRouter backend
     const model = new ChatOpenAI({
@@ -65,12 +69,17 @@ export async function runPreferenceAgent(
     console.log("=".repeat(60));
 
     // Run the agent
-    const result = await agent.invoke({
-        messages: [
-            new SystemMessage(systemPrompt),
-            new HumanMessage(contextMessage),
-        ],
-    });
+    const result = await agent.invoke(
+        {
+            messages: [
+                new SystemMessage(systemPrompt),
+                new HumanMessage(contextMessage),
+            ],
+        },
+        {
+            recursionLimit,
+        }
+    );
 
     // Log the result
     const lastMessage = result.messages[result.messages.length - 1];
