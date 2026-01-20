@@ -1,13 +1,11 @@
 {
     "name": "pr-review-agent",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "description": "AI-powered PR review agent using LangChain and OpenRouter",
     "type": "module",
     "main": "action/index.js",
     "scripts": {
         "build": "tsc && ncc build dist/index.js -o action",
-        "build:preference": "tsc && ncc build dist/preference-index.js -o action-preference",
-        "build:all": "npm run build && npm run build:preference",
         "dev": "tsx src/index.ts",
         "typecheck": "tsc --noEmit"
     },

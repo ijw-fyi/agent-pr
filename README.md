@@ -55,11 +55,12 @@ jobs:
             core.setOutput('base_sha', pr.data.base.sha);
       
       - name: Run PR Review Agent
-        uses: ijw-fyi/agent-pr@v1.0.1
+        uses: ijw-fyi/agent-pr@v1.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
+          ACTION_MODE: review
           PR_NUMBER: ${{ github.event.issue.number }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
@@ -78,11 +79,12 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Run Preference Agent
-        uses: ijw-fyi/agent-pr-preference@v1.0.0
+        uses: ijw-fyi/agent-pr@v1.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
+          ACTION_MODE: preference
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
