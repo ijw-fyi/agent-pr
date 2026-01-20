@@ -2,29 +2,62 @@
  * Claude prompt caching utilities for OpenRouter
  * 
  * Since LangChain doesn't natively support cache_control, we need to:
- * 1. Use a custom OpenAI client that modifies requests
- * 2. Inject cache_control into messages before they're sent
+ * 1. Create a ChatOpenAI instance
+ * 2. Intercept client creation to patch it before first use
  */
 
-import OpenAI from "openai";
+import { ChatOpenAI } from "@langchain/openai";
 
 /**
- * Create an OpenAI client that injects cache_control for Claude prompt caching
+ * Create a ChatOpenAI instance with prompt caching support
+ * 
+ * This works by patching _getClientOptions to intercept client creation
+ * and patch the client's chat.completions.create method
  */
-export function createCachingOpenAIClient(apiKey: string, baseURL: string): OpenAI {
-    const client = new OpenAI({
-        apiKey,
-        baseURL,
+export function createCachedChatOpenAI(): ChatOpenAI {
+    const model = new ChatOpenAI({
+        modelName: process.env.MODEL!,
+        configuration: {
+            baseURL: "https://openrouter.ai/api/v1",
+        },
+        apiKey: process.env.OPENROUTER_KEY!,
     });
 
-    // Wrap the completions create method to inject cache_control
+    // Flag to track if we've patched the client
+    let clientPatched = false;
+
+    // Override _getClientOptions to patch the client right after it's created
+    // @ts-ignore - accessing internal method
+    const originalGetClientOptions = model._getClientOptions.bind(model);
+
+    // @ts-ignore - patching internal method
+    model._getClientOptions = function (options: any) {
+        const result = originalGetClientOptions(options);
+
+        // Patch the client if it exists and hasn't been patched
+        // @ts-ignore
+        if (this.client && !clientPatched) {
+            // @ts-ignore
+            patchOpenAIClient(this.client);
+            clientPatched = true;
+            console.log("✅ Prompt caching client patched");
+        }
+
+        return result;
+    };
+
+    return model;
+}
+
+/**
+ * Patch an OpenAI client to inject cache_control into messages
+ */
+function patchOpenAIClient(client: any) {
     const originalCreate = client.chat.completions.create.bind(client.chat.completions);
 
-    // @ts-ignore - we're patching the method
-    client.chat.completions.create = async function (
-        params: any,
-        options?: any
-    ) {
+    client.chat.completions.create = async function (params: any, options?: any) {
+        console.log("🔄 Sending request with prompt caching");
+
         // Inject cache_control into messages
         const modifiedMessages = (params.messages as any[]).map((msg: any, index: number) => {
             // Cache system (index 0) and first user message (index 1)
@@ -67,14 +100,10 @@ export function createCachingOpenAIClient(apiKey: string, baseURL: string): Open
             messages: modifiedMessages,
         };
 
-        // Log that we're using caching (debug)
-        console.log("🔄 Prompt caching enabled for Claude");
-
         try {
             return await originalCreate(modifiedParams, options);
         } catch (error: any) {
             console.error("❌ OpenRouter API Error:");
-            // Log the full error object for debugging
             if (error.response) {
                 console.error("Response status:", error.response.status);
                 console.error("Response data:", JSON.stringify(error.response.data, null, 2));
@@ -86,30 +115,4 @@ export function createCachingOpenAIClient(apiKey: string, baseURL: string): Open
             throw error;
         }
     };
-
-    return client;
-}
-
-/**
- * Create a ChatOpenAI instance with prompt caching support
- */
-import { ChatOpenAI } from "@langchain/openai";
-
-export function createCachedChatOpenAI() {
-    // Create the caching client
-    const cachingClient = createCachingOpenAIClient(
-        process.env.OPENROUTER_KEY!,
-        "https://openrouter.ai/api/v1"
-    );
-
-    // Create ChatOpenAI with custom client
-    return new ChatOpenAI({
-        modelName: process.env.MODEL!,
-        configuration: {
-            baseURL: "https://openrouter.ai/api/v1",
-        },
-        apiKey: process.env.OPENROUTER_KEY!,
-        // @ts-ignore - Pass the custom client
-        client: cachingClient,
-    });
 }
