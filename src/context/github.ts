@@ -263,3 +263,22 @@ export async function createPRComment(
         body,
     });
 }
+
+/**
+ * Reply to a review comment (creates a reply in the same thread)
+ */
+export async function replyToReviewComment(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    commentId: number,
+    body: string
+): Promise<void> {
+    await octokit.rest.pulls.createReplyForReviewComment({
+        owner,
+        repo,
+        pull_number: prNumber,
+        comment_id: commentId,
+        body,
+    });
+}

@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { appendPreference } from "../preferences/index.js";
-import { createPRComment } from "../context/github.js";
+import { replyToReviewComment } from "../context/github.js";
 
 /**
  * Tool to store a user preference
@@ -11,12 +11,13 @@ export const storePreferenceTool = tool(
         const owner = process.env.REPO_OWNER!;
         const repo = process.env.REPO_NAME!;
         const prNumber = parseInt(process.env.PR_NUMBER!, 10);
+        const commentId = parseInt(process.env.COMMENT_ID!, 10);
 
         try {
             await appendPreference(owner, repo, preference);
 
-            // Leave a comment notifying about the preference update
-            const comment = `🧠 **Preference Learned**
+            // Reply to the comment thread notifying about the preference update
+            const reply = `🧠 **Preference Learned**
 
 I've noted the following preference for future reviews:
 
@@ -24,9 +25,9 @@ I've noted the following preference for future reviews:
 
 This has been saved to the \`__agent_pr__\` branch and will be considered in future code reviews.`;
 
-            await createPRComment(owner, repo, prNumber, comment);
+            await replyToReviewComment(owner, repo, prNumber, commentId, reply);
 
-            return `Successfully stored preference: "${preference}" and notified on PR`;
+            return `Successfully stored preference: "${preference}" and replied to comment thread`;
         } catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";
             return `Error storing preference: ${message}`;
