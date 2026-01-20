@@ -1,9 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output
+# Build output (dist/ is intermediate, action/ must be committed)
 dist/
-action/
 
 # IDE
 .idea/
