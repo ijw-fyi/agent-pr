@@ -6,8 +6,6 @@
     "main": "action/index.js",
     "scripts": {
         "build": "tsc && ncc build dist/index.js -o action",
-        "build:preference": "tsc && ncc build dist/preference-index.js -o action-preference",
-        "build:all": "npm run build && npm run build:preference",
         "dev": "tsx src/index.ts",
         "typecheck": "tsc --noEmit"
     },
