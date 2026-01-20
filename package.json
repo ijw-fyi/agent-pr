@@ -19,6 +19,7 @@
         "@modelcontextprotocol/sdk": "^1.0.0",
         "@types/glob": "^8.1.0",
         "glob": "^13.0.0",
+        "safe-regex2": "^5.0.0",
         "simple-git": "^3.30.0",
         "zod": "^3.23.0"
     },

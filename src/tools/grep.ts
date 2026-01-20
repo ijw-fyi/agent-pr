@@ -3,6 +3,7 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { glob } from "glob";
+import safeRegex from "safe-regex2";
 
 /**
  * Tool to search for patterns in the codebase
@@ -12,6 +13,12 @@ export const grepTool = tool(
         const results: string[] = [];
         const MAX_RESULTS = 50;
         const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+
+        if (type === "regex") {
+            if (!safeRegex(pattern)) {
+                return `Error: The provided regex pattern "${pattern}" is considered unsafe (potential ReDoS). Please use a simpler pattern.`;
+            }
+        }
 
         try {
             // Determine the glob pattern
