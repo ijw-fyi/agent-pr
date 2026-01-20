@@ -172,24 +172,19 @@ function truncateDiff(diff: string): string {
     const MAX_LINES_PER_FILE = 500;
     const MAX_CHARS_PER_FILE = 10000;
 
-    // Use a regex to split, keeping the delimiters if possible or just processing the split
-    // Simple split by "diff --git" might lose the first one if it starts with it?
-    // "diff --git" usually starts a new file section.
-
-    // Split by the start of a new file diff
-    // We use a lookahead or just standard split and reconstruct
+    // Split by "diff --git" at start of line, keeping the delimiter with each part
     const parts = diff.split(/(?=^diff --git )/m);
 
     return parts.map(part => {
         if (!part.trim()) return part;
 
         if (part.length > MAX_CHARS_PER_FILE) {
-            return part.slice(0, MAX_CHARS_PER_FILE) + "\n... (File diff truncated due to size limit: >10k chars)\n";
+            return part.slice(0, MAX_CHARS_PER_FILE) + "\n... (File diff truncated: exceeds 10k chars)\n";
         }
 
         const lines = part.split('\n');
         if (lines.length > MAX_LINES_PER_FILE) {
-            return lines.slice(0, MAX_LINES_PER_FILE).join('\n') + "\n... (File diff truncated due to size limit: >500 lines)\n";
+            return lines.slice(0, MAX_LINES_PER_FILE).join('\n') + "\n... (File diff truncated: exceeds 500 lines)\n";
         }
 
         return part;

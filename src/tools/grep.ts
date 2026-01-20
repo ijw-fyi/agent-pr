@@ -38,13 +38,11 @@ export const grepTool = tool(
             }
 
             // Find files using glob
-            console.log(`Debug: searching in ${process.cwd()} with pattern ${globPattern}`);
             const files = await glob(globPattern, {
                 ignore: ["**/node_modules/**", "**/.git/**", "./build/**", "./dist/**", "./action/**"],
                 nodir: true,
                 dot: true
             });
-            console.log(`Debug: found ${files.length} files`);
 
             for (const filePath of files) {
                 if (results.length >= MAX_RESULTS) break;
@@ -59,8 +57,6 @@ export const grepTool = tool(
                 }
 
                 try {
-                    // Debug: Log file being scanned
-                    console.log(`Debug: scanning ${contextPath}`);
                     const stats = await fs.stat(contextPath);
                     // Check file size
                     if (stats.size > MAX_FILE_SIZE) continue;
@@ -130,7 +126,6 @@ export const grepTool = tool(
                     }
 
                 } catch (err) {
-                    console.log(`Debug: error reading ${filePath}: ${err}`);
                     // Ignore read errors
                 }
             }
