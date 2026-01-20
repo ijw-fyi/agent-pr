@@ -38,7 +38,7 @@ jobs:
             return pr.data;
       
       - name: Run PR Review Agent
-        uses: ijw-fyi/agent-pr@1.2.0-dev.2
+        uses: ijw-fyi/agent-pr@v1.2.0-dev.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Run Preference Agent
-        uses: ijw-fyi/agent-pr@1.2.0-dev.2
+        uses: ijw-fyi/agent-pr@v1.2.0-dev.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
