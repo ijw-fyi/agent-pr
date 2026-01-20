@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0
       
       - name: Run PR Review Agent
-        uses: ijw-fyi/agent-pr@v1.3.0-dev.5
+        uses: ijw-fyi/agent-pr@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
@@ -52,6 +52,7 @@ jobs:
           REPO_NAME: ${{ github.event.repository.name }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
 
   pr_code_message:
     # Run when someone replies to a review comment (not the initial /review command)

@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { initGitHub, gatherPRContext } from "./context/github.js";
+import { initGitHub, gatherPRContext, addReactionToComment } from "./context/github.js";
 import { runReview } from "./agents/review/index.js";
 import { runPreferenceAgent } from "./agents/code-comment/index.js";
 import type { PreferenceContext } from "./agents/code-comment/index.js";
@@ -79,6 +79,17 @@ async function runReviewMode(
 ): Promise<void> {
     console.log(`Starting PR review for ${owner}/${repo}#${prNumber}`);
     console.log(`Using model: ${model}`);
+
+    // Add eyes reaction to the triggering comment to show we've started
+    const triggerCommentId = process.env.TRIGGER_COMMENT_ID;
+    if (triggerCommentId) {
+        try {
+            await addReactionToComment(owner, repo, parseInt(triggerCommentId, 10), "eyes");
+            console.log("Added 👀 reaction to trigger comment");
+        } catch (error) {
+            console.warn("Could not add reaction to comment:", error);
+        }
+    }
 
     // Initialize MCP clients and add their tools
     await initMCPClients();
