@@ -3,7 +3,6 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { glob } from "glob";
-// @ts-ignore
 import safeRegex from "safe-regex2";
 
 /**
