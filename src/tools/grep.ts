@@ -2,6 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { glob } from "glob";
 
 /**
  * Tool to search for patterns in the codebase
@@ -13,117 +14,113 @@ export const grepTool = tool(
         const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 
         try {
-            // Validate start path
+            // Determine the glob pattern
+            // If searchPath is a directory, append **/* to search recursively (like grep -r)
+            // If it's a glob pattern, use it as is
+            let globPattern = searchPath;
             try {
-                await fs.access(searchPath);
-            } catch {
-                return `Error: Path '${searchPath}' does not exist`;
-            }
-
-            // Helper to recursively walk directory
-            async function walk(currentPath: string) {
-                if (results.length >= MAX_RESULTS) return;
-
-                const contextPath = path.resolve(currentPath);
-
-                // Skip hidden files/dirs (like .git)
-                if (path.basename(contextPath).startsWith(".") && path.basename(contextPath) !== ".") {
-                    return;
-                }
-
-                // Skip node_modules
-                if (contextPath.includes("node_modules")) {
-                    return;
-                }
-
-                const stats = await fs.stat(contextPath);
-
+                // Check if it's an existing directory
+                const stats = await fs.stat(searchPath);
                 if (stats.isDirectory()) {
-                    const entries = await fs.readdir(contextPath);
-                    for (const entry of entries) {
-                        await walk(path.join(currentPath, entry));
-                        if (results.length >= MAX_RESULTS) return;
-                    }
-                } else if (stats.isFile()) {
-                    // Check file size
-                    if (stats.size > MAX_FILE_SIZE) return;
-
-                    try {
-                        // Attempt to read as text
-                        const content = await fs.readFile(contextPath, "utf-8");
-
-                        // Check for binary characters (simple heuristic)
-                        if (/\0/.test(content.slice(0, 1000))) return;
-
-                        const lines = content.split("\n");
-
-                        let regex: RegExp;
-                        if (type === "regex") {
-                            regex = new RegExp(pattern, caseInsensitive ? "i" : "");
-                        } else {
-                            // Escape regex characters for exact match if we were to use regex, 
-                            // but for exact match we can use string includes or regex with escaped pattern
-                            // Using regex allows us to easily handle caseInsensitive for exact match too if needed,
-                            // or we can just lowerCase both.
-                            // Let's use regex with escaped pattern for consistent line-by-line matching
-                            const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                            regex = new RegExp(escaped, caseInsensitive ? "i" : "");
-                        }
-
-                        // Collect matching line indices
-                        const matches: number[] = [];
-                        for (let i = 0; i < lines.length; i++) {
-                            if (regex.test(lines[i])) {
-                                matches.push(i);
-                            }
-                        }
-
-                        if (matches.length > 0) {
-                            const relativePath = path.relative(process.cwd(), contextPath);
-
-                            // Group overlapping matches
-                            let currentGroup: { start: number; end: number } | null = null;
-                            const ranges: { start: number; end: number }[] = [];
-
-                            for (const matchIndex of matches) {
-                                const start = Math.max(0, matchIndex - padding);
-                                const end = Math.min(lines.length - 1, matchIndex + padding);
-
-                                if (!currentGroup) {
-                                    currentGroup = { start, end };
-                                } else {
-                                    if (start <= currentGroup.end + 1) {
-                                        // Merge
-                                        currentGroup.end = Math.max(currentGroup.end, end);
-                                    } else {
-                                        // New group
-                                        ranges.push(currentGroup);
-                                        currentGroup = { start, end };
-                                    }
-                                }
-                            }
-                            if (currentGroup) {
-                                ranges.push(currentGroup);
-                            }
-
-                            for (const range of ranges) {
-                                if (results.length >= MAX_RESULTS) break;
-
-                                let snippet = `File: ${relativePath}\n`;
-                                for (let i = range.start; i <= range.end; i++) {
-                                    // Mark matching line
-                                    snippet += `${i + 1}: ${lines[i]}\n`;
-                                }
-                                results.push(snippet);
-                            }
-                        }
-                    } catch (err) {
-                        // Ignore read errors (perms, binary, etc)
-                    }
+                    globPattern = path.join(searchPath, "**/*");
                 }
+            } catch {
+                // If fs.stat fails, it's likely a glob pattern or non-existent path
+                // We'll treat it as a glob pattern and let glob() handle it
             }
 
-            await walk(searchPath);
+            // Find files using glob
+            const files = await glob(globPattern, {
+                ignore: ["**/node_modules/**", "**/.git/**"],
+                nodir: true,
+                dot: true
+            });
+
+            for (const filePath of files) {
+                if (results.length >= MAX_RESULTS) break;
+
+                const contextPath = path.resolve(filePath);
+
+                // Security check: Ensure file is within current working directory
+                const rootDir = process.cwd();
+                const relativeCheck = path.relative(rootDir, contextPath);
+                if (relativeCheck.startsWith("..") || path.isAbsolute(relativeCheck)) {
+                    continue;
+                }
+
+                try {
+                    const stats = await fs.stat(contextPath);
+                    // Check file size
+                    if (stats.size > MAX_FILE_SIZE) continue;
+
+                    // Attempt to read as text
+                    const content = await fs.readFile(contextPath, "utf-8");
+
+                    // Check for binary characters (simple heuristic)
+                    if (/\0/.test(content.slice(0, 1000))) continue;
+
+                    const lines = content.split("\n");
+
+                    let regex: RegExp;
+                    if (type === "regex") {
+                        regex = new RegExp(pattern, caseInsensitive ? "i" : "");
+                    } else {
+                        const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        regex = new RegExp(escaped, caseInsensitive ? "i" : "");
+                    }
+
+                    // Collect matching line indices
+                    const matches: number[] = [];
+                    for (let i = 0; i < lines.length; i++) {
+                        if (regex.test(lines[i])) {
+                            matches.push(i);
+                        }
+                    }
+
+                    if (matches.length > 0) {
+                        const relativePath = path.relative(process.cwd(), contextPath);
+
+                        // Group overlapping matches
+                        let currentGroup: { start: number; end: number } | null = null;
+                        const ranges: { start: number; end: number }[] = [];
+
+                        for (const matchIndex of matches) {
+                            const start = Math.max(0, matchIndex - padding);
+                            const end = Math.min(lines.length - 1, matchIndex + padding);
+
+                            if (!currentGroup) {
+                                currentGroup = { start, end };
+                            } else {
+                                if (start <= currentGroup.end + 1) {
+                                    // Merge
+                                    currentGroup.end = Math.max(currentGroup.end, end);
+                                } else {
+                                    // New group
+                                    ranges.push(currentGroup);
+                                    currentGroup = { start, end };
+                                }
+                            }
+                        }
+                        if (currentGroup) {
+                            ranges.push(currentGroup);
+                        }
+
+                        for (const range of ranges) {
+                            if (results.length >= MAX_RESULTS) break;
+
+                            let snippet = `File: ${relativePath}\n`;
+                            for (let i = range.start; i <= range.end; i++) {
+                                // Mark matching line
+                                snippet += `${i + 1}: ${lines[i]}\n`;
+                            }
+                            results.push(snippet);
+                        }
+                    }
+
+                } catch (err) {
+                    // Ignore read errors
+                }
+            }
 
             if (results.length === 0) {
                 return `No matches found for "${pattern}" in ${searchPath}`;
@@ -148,7 +145,7 @@ export const grepTool = tool(
                 .string()
                 .optional()
                 .default(".")
-                .describe("The directory or file path to search in. Defaults to current directory (.)."),
+                .describe("The directory or file path to search in. Defaults to current directory (.). Examples: 'src/*.ts', 'src', '**/*.json'."),
             type: z
                 .enum(["regex", "exact_match"])
                 .optional()
