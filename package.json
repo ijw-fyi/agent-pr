@@ -6,6 +6,8 @@
     "main": "action/index.js",
     "scripts": {
         "build": "tsc && ncc build dist/index.js -o action",
+        "build:preference": "tsc && ncc build dist/preference-index.js -o action-preference",
+        "build:all": "npm run build && npm run build:preference",
         "dev": "tsx src/index.ts",
         "typecheck": "tsc --noEmit"
     },
@@ -16,6 +18,7 @@
         "@langchain/langgraph": "^0.2.0",
         "@langchain/openai": "^0.3.0",
         "@modelcontextprotocol/sdk": "^1.0.0",
+        "simple-git": "^3.30.0",
         "zod": "^3.23.0"
     },
     "devDependencies": {

@@ -6,6 +6,7 @@ AI-powered GitHub Action that reviews pull requests using an agentic loop. Trigg
 
 - **Agentic Review**: Uses LangChain's ReAct agent for iterative code analysis
 - **Inline Comments**: Leaves targeted comments on specific lines of code
+- **Preference Memory**: Learns your coding preferences from replies to review comments
 - **MCP Support**: Extensible via Model Context Protocol (DeepWiki included by default)
 - **Web Search**: Optional Gemini-powered web search for documentation lookup
 - **Multi-Model**: Works with any model on OpenRouter (Claude, GPT-4, etc.)
@@ -21,6 +22,8 @@ name: PR Review
 
 on:
   issue_comment:
+    types: [created]
+  pull_request_review_comment:
     types: [created]
 
 jobs:
@@ -56,12 +59,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
-          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-3.5-sonnet' }}
+          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
           PR_NUMBER: ${{ github.event.issue.number }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+
+  learn_preferences:
+    if: github.event_name == 'pull_request_review_comment' && github.event.action == 'created'
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Preference Agent
+        uses: ijw-fyi/agent-pr-preference@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          COMMENT_ID: ${{ github.event.comment.id }}
 ```
 
 ### 2. Add secrets to your repository
@@ -83,7 +108,7 @@ Comment `/review` on any pull request!
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MODEL` | `anthropic/claude-3.5-sonnet` | OpenRouter model identifier |
+| `MODEL` | `anthropic/claude-4.5-sonnet` | OpenRouter model identifier |
 | `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 | `GEMINI_API_KEY` | - | Enables web search with Gemini |
 
@@ -92,10 +117,7 @@ Comment `/review` on any pull request!
 Any model available on [OpenRouter](https://openrouter.ai/models) works. Examples:
 
 ```yaml
-MODEL: 'anthropic/claude-3.5-sonnet'  # Default, great for code
-MODEL: 'openai/gpt-4o'                # OpenAI's latest
-MODEL: 'google/gemini-2.0-flash'      # Fast and capable
-MODEL: 'deepseek/deepseek-chat'       # Cost-effective
+MODEL: 'anthropic/claude-4.5-sonnet'  # Default, great for code
 ```
 
 ### MCP Servers
@@ -124,6 +146,19 @@ The agent focuses on **significant issues only**:
 
 It **ignores** minor style issues and pedantic best-practice suggestions.
 
+## Preference Memory
+
+The agent learns your coding preferences from your replies to its review comments. When you disagree with a suggestion or express a preference, it will:
+
+1. **Extract the preference** from your reply
+2. **Save it** to a `__agent_pr__` branch in `preferences.txt`
+3. **Notify you** with a comment confirming what was learned
+4. **Apply it** in future reviews
+
+**Example:** If the agent suggests using `.then()` and you reply "I prefer async/await", it will remember this and avoid similar suggestions in the future.
+
+Preferences are stored per-repository and persist across PRs.
+
 ## Tools Available to the Agent
 
 | Tool | Description |
@@ -147,7 +182,7 @@ When triggered, the agent will:
 ============================================================
 Starting PR Review Agent
 ============================================================
-Model: anthropic/claude-3.5-sonnet
+Model: anthropic/claude-4.5-sonnet
 Tools available: read_file, leave_comment, submit_review, deepwiki_ask
 ============================================================
 

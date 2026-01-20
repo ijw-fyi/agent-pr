@@ -132,6 +132,16 @@ ${context.conversation.map((c) => `- **${c.author}**: ${c.body}`).join("\n")}
 `;
     }
 
+    if (context.preferences) {
+        message += `
+## User Preferences
+The following preferences have been learned from previous interactions. Please respect these when reviewing:
+\`\`\`
+${context.preferences}
+\`\`\`
+`;
+    }
+
     message += `
 ## Your Task
 Please review this pull request thoroughly. Use the tools available to:

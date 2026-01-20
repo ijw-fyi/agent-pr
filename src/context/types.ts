@@ -16,6 +16,8 @@ export interface PRContext {
     fileTree: string;
     existingComments: ReviewComment[];
     conversation: ConversationComment[];
+    /** User preferences loaded from __agent_pr__ branch */
+    preferences: string;
 }
 
 /**

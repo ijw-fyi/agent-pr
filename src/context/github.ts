@@ -4,6 +4,7 @@ import type {
     ReviewComment,
     ConversationComment,
 } from "./types.js";
+import { readPreferences } from "../preferences/index.js";
 
 type Octokit = ReturnType<typeof github.getOctokit>;
 
@@ -34,12 +35,13 @@ export async function gatherPRContext(
     repo: string,
     prNumber: number
 ): Promise<PRContext> {
-    const [pr, diff, tree, reviewComments, issueComments] = await Promise.all([
+    const [pr, diff, tree, reviewComments, issueComments, preferences] = await Promise.all([
         getPullRequest(owner, repo, prNumber),
         getPRDiff(owner, repo, prNumber),
         getProjectTree(owner, repo, process.env.HEAD_SHA!),
         getReviewComments(owner, repo, prNumber),
         getConversation(owner, repo, prNumber),
+        readPreferences(owner, repo),
     ]);
 
     return {
@@ -57,6 +59,7 @@ export async function gatherPRContext(
         fileTree: tree,
         existingComments: reviewComments,
         conversation: issueComments,
+        preferences,
     };
 }
 
