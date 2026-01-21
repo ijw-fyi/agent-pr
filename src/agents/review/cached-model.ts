@@ -21,6 +21,8 @@ export function createCachedChatOpenAI(): ChatOpenAI {
             baseURL: "https://openrouter.ai/api/v1",
         },
         apiKey: process.env.OPENROUTER_KEY!,
+        // Need max_tokens > budget_tokens for extended thinking
+        maxTokens: 16000,
     });
 
     // Flag to track if we've patched the client
@@ -117,6 +119,11 @@ function patchOpenAIClient(client: any) {
         const modifiedParams = {
             ...params,
             messages: modifiedMessages,
+            // OpenRouter reasoning config (medium effort)
+            // @ts-ignore
+            reasoning: {
+                effort: "medium"
+            },
         };
 
         try {
@@ -134,6 +141,16 @@ function patchOpenAIClient(client: any) {
                         console.log(`   Cache: ${write > 0 ? `📝 Write ${write}` : ''}${write > 0 && read > 0 ? ', ' : ''}${read > 0 ? `📖 Read ${read}` : ''} tokens`);
                     }
                 }
+            }
+
+            // Log thinking/reasoning if present
+            const choice = response?.choices?.[0]?.message;
+            if (choice?.reasoning) {
+                console.log(`🧠 Thinking: ${choice.reasoning.substring(0, 100)}... (${choice.reasoning.length} chars)`);
+            } else if (choice?.content) {
+                // Check if content has thinking blocks (OpenAI format might differ)
+                // Sometimes thinking comes as a separate part of content
+                // Just log if we see suspicious "thinking" or "reasoning" fields
             }
 
             return response;
