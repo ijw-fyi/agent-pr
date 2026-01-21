@@ -175,16 +175,16 @@ export async function appendPreference(
 ): Promise<void> {
     const currentPreferences = await readPreferences(owner, repo);
 
-    const timestamp = new Date().toISOString();
-    const newEntry = `\n[${timestamp}]\n${preference}\n`;
-
-    const updatedContent = currentPreferences + newEntry;
+    const trimmedPreference = preference.trim();
+    const updatedContent = currentPreferences
+        ? currentPreferences.trimEnd() + "\n" + trimmedPreference + "\n"
+        : trimmedPreference + "\n";
 
     await writePreferences(
         owner,
         repo,
         updatedContent,
-        `Add preference: ${preference.substring(0, 50)}...`
+        `Add preference: ${trimmedPreference.substring(0, 50)}${trimmedPreference.length > 50 ? '...' : ''}`
     );
 }
 

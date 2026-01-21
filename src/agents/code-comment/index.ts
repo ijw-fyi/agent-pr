@@ -1,9 +1,16 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { PREFERENCE_PROMPT } from "./prompt.js";
 import { storePreferenceTool } from "../../tools/store-preference.js";
+import { replyToCommentTool } from "../../tools/reply-to-comment.js";
+import { readFileTool } from "../../tools/read-file.js";
+import { listDirectoryTool } from "../../tools/list-directory.js";
+import { grepTool } from "../../tools/grep.js";
+import { searchWebTool, isWebSearchAvailable } from "../../tools/search-web.js";
 import { readPreferences } from "../../preferences/index.js";
+import { addReactionToReviewComment } from "../../context/github.js";
+import type { StructuredToolInterface } from "@langchain/core/tools";
 
 /**
  * Context for the preference agent
@@ -24,8 +31,25 @@ export interface PreferenceContext {
 }
 
 /**
- * Run the preference extraction agent
+ * Get the tools available to the code comment agent
  */
+function getCodeCommentTools(): StructuredToolInterface[] {
+    const tools: StructuredToolInterface[] = [
+        storePreferenceTool,
+        replyToCommentTool,
+        readFileTool,
+        listDirectoryTool,
+        grepTool,
+    ];
+
+    // Only include web search tool if GEMINI_API_KEY is available
+    if (isWebSearchAvailable()) {
+        tools.push(searchWebTool);
+    }
+
+    return tools;
+}
+
 /**
  * Run the preference extraction agent
  */
@@ -42,10 +66,13 @@ export async function runPreferenceAgent(
         apiKey: process.env.OPENROUTER_KEY!,
     });
 
-    // Create agent with just the store_preference tool
+    // Get tools for the agent
+    const tools = getCodeCommentTools();
+
+    // Create agent with all available tools
     const agent = createReactAgent({
         llm: model,
-        tools: [storePreferenceTool],
+        tools,
     });
 
     // Load existing preferences
@@ -62,14 +89,27 @@ export async function runPreferenceAgent(
     const contextMessage = buildContextMessage(context);
 
     console.log("=".repeat(60));
-    console.log("Starting Preference Agent");
+    console.log("Starting Code Comment Agent");
     console.log("=".repeat(60));
     console.log(`File: ${context.filePath}`);
     console.log(`Comments in chain: ${context.commentChain.length}`);
+    console.log(`Tools available: ${tools.map(t => t.name).join(", ")}`);
     console.log("=".repeat(60));
 
-    // Run the agent
-    const result = await agent.invoke(
+    // Add eyes reaction to show we're processing
+    const commentId = process.env.COMMENT_ID ? parseInt(process.env.COMMENT_ID, 10) : null;
+    if (commentId) {
+        try {
+            await addReactionToReviewComment(context.owner, context.repo, commentId, "eyes");
+            console.log("👀 Added eyes reaction to comment");
+        } catch (error) {
+            console.log("Could not add eyes reaction:", error);
+        }
+    }
+
+    // Stream the agent execution to log each step
+    let stepCount = 0;
+    const stream = await agent.stream(
         {
             messages: [
                 new SystemMessage(systemPrompt),
@@ -81,10 +121,48 @@ export async function runPreferenceAgent(
         }
     );
 
-    // Log the result
-    const lastMessage = result.messages[result.messages.length - 1];
-    console.log("\nAgent result:");
-    console.log(lastMessage.content);
+    for await (const chunk of stream) {
+        stepCount++;
+        console.log(`\n${"─".repeat(60)}`);
+        console.log(`Step ${stepCount}`);
+        console.log("─".repeat(60));
+
+        // Log agent messages (LLM responses)
+        if (chunk.agent?.messages) {
+            for (const msg of chunk.agent.messages) {
+                if (msg instanceof AIMessage) {
+                    // Log tool calls
+                    if (msg.tool_calls && msg.tool_calls.length > 0) {
+                        console.log("\n🔧 Tool Calls:");
+                        for (const toolCall of msg.tool_calls) {
+                            console.log(`  → ${toolCall.name}`);
+                            console.log(`    Args: ${JSON.stringify(toolCall.args, null, 2).split('\n').join('\n    ')}`);
+                        }
+                    }
+
+                    // Log LLM text response
+                    if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
+                        console.log("\n💬 Agent Response:");
+                        console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
+                    }
+                }
+            }
+        }
+
+        // Log tool results
+        if (chunk.tools?.messages) {
+            for (const msg of chunk.tools.messages) {
+                if (msg instanceof ToolMessage) {
+                    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                    console.log(`\n📤 Tool Result (${msg.name}):`);
+                    console.log(`  ${content.substring(0, 300)}${content.length > 300 ? '...' : ''}`);
+                }
+            }
+        }
+    }
+
+    console.log(`\n${"=".repeat(60)}`);
+    console.log(`Code Comment Agent completed. Total steps: ${stepCount}`);
     console.log("=".repeat(60));
 }
 
@@ -107,6 +185,12 @@ ${context.codeSnippet}
 ${comments}
 
 ## Your Task
-Analyze the user's reply. If it reveals a coding preference that should be remembered for future reviews, use the store_preference tool. Otherwise, just respond that no preference was detected.
+Analyze this conversation. You have full access to exploration tools if you need more context.
+
+1. If the user's reply reveals a coding preference, use \`store_preference\` to save it
+2. If you want to respond to the user (clarify, ask a question, or continue the discussion), use \`reply_to_comment\`
+3. If the conversation is complete and no preference was found, simply respond that no action is needed
+
+You can use both tools if appropriate (e.g., save a preference AND reply to acknowledge it).
 `;
 }
