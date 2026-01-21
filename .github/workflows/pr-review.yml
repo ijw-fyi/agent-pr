@@ -83,7 +83,7 @@ jobs:
           ref: ${{ steps.pr.outputs.head_sha }}
       
       - name: Run Preference Agent
-        uses: ijw-fyi/agent-pr@v1.8.0-dev.1
+        uses: ijw-fyi/agent-pr@v1.8.0-dev.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
