@@ -107,12 +107,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
+          MCP_CONFIG: ${{ vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
           ACTION_MODE: preference
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
           COMMENT_ID: ${{ github.event.comment.id }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
 ```
 
 ### 2. Add secrets to your repository
