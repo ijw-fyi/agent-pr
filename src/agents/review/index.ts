@@ -117,25 +117,6 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
                         console.log("\n💬 Agent Response:");
                         console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
                     }
-
-                    // Log token usage stats
-                    const usage = msg.response_metadata?.usage || msg.usage_metadata;
-                    if (usage) {
-                        console.log("\n📊 Token Usage:");
-                        console.log(`  Input: ${usage.input_tokens || usage.prompt_tokens || 'N/A'}`);
-                        console.log(`  Output: ${usage.output_tokens || usage.completion_tokens || 'N/A'}`);
-
-                        // Cache stats - check both OpenRouter format and Anthropic format
-                        const cacheWrite = usage.prompt_tokens_details?.cache_write_tokens || usage.cache_creation_input_tokens;
-                        const cacheRead = usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens;
-
-                        if (cacheWrite !== undefined && cacheWrite > 0) {
-                            console.log(`  Cache Write: ${cacheWrite} tokens`);
-                        }
-                        if (cacheRead !== undefined && cacheRead > 0) {
-                            console.log(`  Cache Read: ${cacheRead} tokens ✨`);
-                        }
-                    }
                 }
             }
         }
