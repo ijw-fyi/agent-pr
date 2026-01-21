@@ -4,10 +4,7 @@ import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/
 import { PREFERENCE_PROMPT } from "./prompt.js";
 import { storePreferenceTool } from "../../tools/store-preference.js";
 import { replyToCommentTool } from "../../tools/reply-to-comment.js";
-import { readFileTool } from "../../tools/read-file.js";
-import { listDirectoryTool } from "../../tools/list-directory.js";
-import { grepTool } from "../../tools/grep.js";
-import { searchWebTool, isWebSearchAvailable } from "../../tools/search-web.js";
+import { tools as reviewTools } from "../../tools/index.js";
 import { readPreferences } from "../../preferences/index.js";
 import { addReactionToReviewComment } from "../../context/github.js";
 import type { StructuredToolInterface } from "@langchain/core/tools";
@@ -32,22 +29,14 @@ export interface PreferenceContext {
 
 /**
  * Get the tools available to the code comment agent
+ * Uses the shared tools array (includes MCP tools) plus preference-specific tools
  */
 function getCodeCommentTools(): StructuredToolInterface[] {
-    const tools: StructuredToolInterface[] = [
+    return [
         storePreferenceTool,
         replyToCommentTool,
-        readFileTool,
-        listDirectoryTool,
-        grepTool,
+        ...reviewTools,  // Includes read_file, list_directory, grep, search_web, and MCP tools
     ];
-
-    // Only include web search tool if GEMINI_API_KEY is available
-    if (isWebSearchAvailable()) {
-        tools.push(searchWebTool);
-    }
-
-    return tools;
 }
 
 /**

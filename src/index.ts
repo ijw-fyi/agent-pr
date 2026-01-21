@@ -134,6 +134,14 @@ async function runPreferenceMode(
     console.log(`Processing comment reply for ${owner}/${repo}#${prNumber}`);
     console.log(`Comment ID: ${commentId}`);
 
+    // Initialize MCP clients and add their tools
+    await initMCPClients();
+    const mcpTools = await getMCPTools();
+    if (mcpTools.length > 0) {
+        addMCPTools(mcpTools);
+        console.log(`Added ${mcpTools.length} MCP tool(s)`);
+    }
+
     // Gather context for the preference agent
     const context = await gatherPreferenceContext(owner, repo, prNumber, commentId);
 
