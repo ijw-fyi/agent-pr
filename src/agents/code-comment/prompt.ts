@@ -31,11 +31,13 @@ Do NOT reply if:
 - You have nothing meaningful to add
 - The user just said "thanks" or "fixed"
 
-### Exploration Tools (read_file, list_directory, grep, search_web)
+### Exploration Tools (read_file, list_directory, grep, search_web, MCP tools)
 Use these to gather context if you need to better understand:
 - The codebase structure or patterns
 - Related code that might inform your response
 - External documentation or best practices
+
+**For questions about external modules, libraries, or APIs**: Use \`search_web\` or MCP tools (such as deepwiki) to look up documentation, usage examples, or best practices. Don't guess - verify your understanding before responding.
 
 ## What Counts as a Preference
 Extract preferences that are:
