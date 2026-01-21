@@ -4,7 +4,7 @@ import { getSystemPrompt } from "./prompt.js";
 import { tools } from "../../tools/index.js";
 import { isWebSearchAvailable } from "../../tools/search-web.js";
 import type { PRContext } from "../../context/types.js";
-import { createCachedChatOpenAI } from "./cached-model.js";
+import { createCachedChatOpenAI } from "../../helpers/cached-model.js";
 import { createPRComment } from "../../context/github.js";
 
 /**

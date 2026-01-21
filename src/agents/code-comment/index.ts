@@ -1,4 +1,3 @@
-import { ChatOpenAI } from "@langchain/openai";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { PREFERENCE_PROMPT } from "./prompt.js";
@@ -7,6 +6,7 @@ import { replyToCommentTool } from "../../tools/reply-to-comment.js";
 import { tools as reviewTools } from "../../tools/index.js";
 import { readPreferences } from "../../preferences/index.js";
 import { addReactionToReviewComment } from "../../context/github.js";
+import { createCachedChatOpenAI } from "../../helpers/cached-model.js";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 /**
@@ -46,14 +46,8 @@ export async function runPreferenceAgent(
     context: PreferenceContext,
     recursionLimit: number = 100
 ): Promise<void> {
-    // Create the model with OpenRouter backend
-    const model = new ChatOpenAI({
-        modelName: process.env.MODEL!,
-        configuration: {
-            baseURL: "https://openrouter.ai/api/v1",
-        },
-        apiKey: process.env.OPENROUTER_KEY!,
-    });
+    // Create the model with OpenRouter backend and prompt caching
+    const model = createCachedChatOpenAI();
 
     // Get tools for the agent
     const tools = getCodeCommentTools();
