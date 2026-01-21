@@ -1,0 +1,55 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Review PR",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            "args": [
+                "src/index.ts"
+            ],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                "REPO_OWNER": "${input:repoOwner}",
+                "REPO_NAME": "${input:repoName}",
+                "PR_NUMBER": "${input:prNumber}",
+                "MODEL": "${input:model}"
+            },
+            "console": "integratedTerminal"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "repoOwner",
+            "type": "promptString",
+            "description": "Repository owner",
+            "default": "ijw-fyi"
+        },
+        {
+            "id": "repoName",
+            "type": "promptString",
+            "description": "Repository name",
+            "default": "agent-pr"
+        },
+        {
+            "id": "prNumber",
+            "type": "promptString",
+            "description": "PR number",
+            "default": "10"
+        },
+        {
+            "id": "headSha",
+            "type": "promptString",
+            "description": "HEAD SHA (run: git ls-remote origin pull/N/head)",
+            "default": ""
+        },
+        {
+            "id": "model",
+            "type": "promptString",
+            "description": "Model to use",
+            "default": "anthropic/claude-sonnet-4.5"
+        }
+    ]
+}
