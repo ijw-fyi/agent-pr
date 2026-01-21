@@ -104,6 +104,10 @@ async function runReviewMode(
     const context = await gatherPRContext(owner, repo, prNumber);
     console.log(`PR: "${context.title}" by ${context.author}`);
     console.log(`Changes: ${context.headBranch} → ${context.baseBranch}`);
+    console.log(`HEAD SHA: ${context.headSha}`);
+
+    // Set HEAD_SHA for tools that need it
+    process.env.HEAD_SHA = context.headSha;
 
     // Run the review
     console.log("Starting agent review...");

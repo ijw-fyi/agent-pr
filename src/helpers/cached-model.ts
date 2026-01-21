@@ -147,13 +147,14 @@ function patchOpenAIClient(client: any) {
                     }
                 }
                 // Log cost info
-                const cost = usage.cost ?? usage.total_cost;
-                if (cost !== undefined && cost !== null) {
-                    runningCostTotal += cost;
-                    // For BYOK, also show upstream inference cost if available
-                    const upstreamCost = usage.cost_details?.upstream_inference_cost;
-                    const costStr = `$${cost.toFixed(6)}`;
-                    const upstreamStr = upstreamCost !== undefined ? ` (upstream: $${upstreamCost.toFixed(6)})` : '';
+                const cost = usage.cost ?? usage.total_cost ?? 0;
+                const upstreamCost = usage.cost_details?.upstream_inference_cost ?? 0;
+                // Use upstream cost for running total if regular cost is 0 (BYOK)
+                const effectiveCost = cost > 0 ? cost : upstreamCost;
+                if (effectiveCost > 0) {
+                    runningCostTotal += effectiveCost;
+                    const costStr = cost > 0 ? `$${cost.toFixed(6)}` : '$0.000000';
+                    const upstreamStr = upstreamCost > 0 ? ` (upstream: $${upstreamCost.toFixed(6)})` : '';
                     console.log(`💰 Cost: ${costStr}${upstreamStr} | Running total: $${runningCostTotal.toFixed(6)}`);
                 }
             }
