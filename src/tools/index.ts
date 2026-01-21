@@ -1,5 +1,6 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { readFileTool } from "./read-file.js";
+import { listDirectoryTool } from "./list-directory.js";
 import { searchWebTool, isWebSearchAvailable } from "./search-web.js";
 import { leaveCommentTool } from "./leave-comment.js";
 import { submitReviewTool } from "./submit-review.js";
@@ -12,6 +13,7 @@ import { grepTool } from "./grep.js";
 function getBuiltInTools(): StructuredToolInterface[] {
     const tools: StructuredToolInterface[] = [
         readFileTool,
+        listDirectoryTool,
         leaveCommentTool,
         submitReviewTool,
         grepTool,

@@ -13,7 +13,6 @@ export interface PRContext {
     headSha: string;
     baseSha: string;
     diff: string;
-    fileTree: string;
     existingComments: ReviewComment[];
     conversation: ConversationComment[];
     /** User preferences loaded from __agent_pr__ branch */

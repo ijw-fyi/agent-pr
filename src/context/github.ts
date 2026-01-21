@@ -35,10 +35,9 @@ export async function gatherPRContext(
     repo: string,
     prNumber: number
 ): Promise<PRContext> {
-    const [pr, diff, tree, reviewComments, issueComments, preferences] = await Promise.all([
+    const [pr, diff, reviewComments, issueComments, preferences] = await Promise.all([
         getPullRequest(owner, repo, prNumber),
         getPRDiff(owner, repo, prNumber),
-        getProjectTree(owner, repo, process.env.HEAD_SHA!),
         getReviewComments(owner, repo, prNumber),
         getConversation(owner, repo, prNumber),
         readPreferences(owner, repo),
@@ -56,7 +55,6 @@ export async function gatherPRContext(
         headSha: pr.head.sha,
         baseSha: pr.base.sha,
         diff,
-        fileTree: tree,
         existingComments: reviewComments,
         conversation: issueComments,
         preferences,
@@ -93,35 +91,6 @@ async function getPRDiff(
     });
     // When requesting diff format, data is returned as a string
     return data as unknown as string;
-}
-
-/**
- * Get the project file tree at a specific ref
- */
-async function getProjectTree(
-    owner: string,
-    repo: string,
-    ref: string
-): Promise<string> {
-    try {
-        const { data } = await octokit.rest.git.getTree({
-            owner,
-            repo,
-            tree_sha: ref,
-            recursive: "true",
-        });
-
-        // Format as a simple tree structure
-        const files = data.tree
-            .filter((item) => item.type === "blob")
-            .map((item) => item.path)
-            .sort();
-
-        return files.join("\n");
-    } catch (error) {
-        console.error("Error fetching project tree:", error);
-        return "(Unable to fetch project tree)";
-    }
 }
 
 /**
