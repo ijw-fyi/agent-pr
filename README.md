@@ -143,7 +143,7 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
 ```
 
-### 2. Add secrets to your repository
+### 2. Add secrets to your repository (Handled at ORG level, SKIP)
 
 Go to **Settings → Secrets and variables → Actions**:
 
