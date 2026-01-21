@@ -40,12 +40,6 @@
             "default": "10"
         },
         {
-            "id": "headSha",
-            "type": "promptString",
-            "description": "HEAD SHA (run: git ls-remote origin pull/N/head)",
-            "default": ""
-        },
-        {
             "id": "model",
             "type": "promptString",
             "description": "Model to use",
