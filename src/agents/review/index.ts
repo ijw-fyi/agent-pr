@@ -1,10 +1,10 @@
-import { ChatOpenAI } from "@langchain/openai";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { getSystemPrompt } from "./prompt.js";
 import { tools } from "../../tools/index.js";
 import { isWebSearchAvailable } from "../../tools/search-web.js";
 import type { PRContext } from "../../context/types.js";
+import { createCachedChatOpenAI } from "./cached-model.js";
 
 /**
  * Run the PR review agent with the given context
@@ -13,14 +13,8 @@ export async function runReview(
     context: PRContext,
     recursionLimit: number = 100
 ): Promise<void> {
-    // Create the model with OpenRouter backend
-    const model = new ChatOpenAI({
-        modelName: process.env.MODEL!,
-        configuration: {
-            baseURL: "https://openrouter.ai/api/v1",
-        },
-        apiKey: process.env.OPENROUTER_KEY!,
-    });
+    // Create the model with OpenRouter backend and prompt caching
+    const model = createCachedChatOpenAI();
 
     // Create the React agent
     const agent = createReactAgent({
@@ -81,6 +75,25 @@ export async function runReview(
                     if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
                         console.log("\n💬 Agent Response:");
                         console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
+                    }
+
+                    // Log token usage stats
+                    const usage = msg.response_metadata?.usage || msg.usage_metadata;
+                    if (usage) {
+                        console.log("\n📊 Token Usage:");
+                        console.log(`  Input: ${usage.input_tokens || usage.prompt_tokens || 'N/A'}`);
+                        console.log(`  Output: ${usage.output_tokens || usage.completion_tokens || 'N/A'}`);
+
+                        // Cache stats - check both OpenRouter format and Anthropic format
+                        const cacheWrite = usage.prompt_tokens_details?.cache_write_tokens || usage.cache_creation_input_tokens;
+                        const cacheRead = usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens;
+
+                        if (cacheWrite !== undefined && cacheWrite > 0) {
+                            console.log(`  Cache Write: ${cacheWrite} tokens`);
+                        }
+                        if (cacheRead !== undefined && cacheRead > 0) {
+                            console.log(`  Cache Read: ${cacheRead} tokens ✨`);
+                        }
                     }
                 }
             }
