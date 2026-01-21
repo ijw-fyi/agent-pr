@@ -117,6 +117,11 @@ function patchOpenAIClient(client: any) {
         const modifiedParams = {
             ...params,
             messages: modifiedMessages,
+            // OpenRouter reasoning config (medium effort)
+            // @ts-ignore
+            reasoning: {
+                effort: "medium"
+            },
         };
 
         try {
@@ -134,6 +139,21 @@ function patchOpenAIClient(client: any) {
                         console.log(`   Cache: ${write > 0 ? `📝 Write ${write}` : ''}${write > 0 && read > 0 ? ', ' : ''}${read > 0 ? `📖 Read ${read}` : ''} tokens`);
                     }
                 }
+            }
+
+            // Log thinking/reasoning if present
+            const choice = response?.choices?.[0]?.message as any;
+            if (choice?.reasoning_details && Array.isArray(choice.reasoning_details)) {
+                for (const detail of choice.reasoning_details) {
+                    if (detail.type === 'reasoning.summary' && detail.summary) {
+                        console.log(`🧠 Thinking Summary: ${detail.summary.substring(0, 500)}...`);
+                    } else if (detail.type === 'reasoning.text' && detail.text) {
+                        console.log(`🧠 Thinking: ${detail.text.substring(0, 1000)}... (${detail.text.length} chars)`);
+                    }
+                }
+            } else if (choice?.reasoning) {
+                // Fallback for older format
+                console.log(`🧠 Thinking: ${choice.reasoning.substring(0, 1000)}... (${choice.reasoning.length} chars)`);
             }
 
             return response;
