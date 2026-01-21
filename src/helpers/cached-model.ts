@@ -147,15 +147,19 @@ function patchOpenAIClient(client: any) {
                     }
                 }
                 // Log cost info
+                // For BYOK: cost = OpenRouter fee (5%), upstream = provider cost
+                // For non-BYOK: cost = total (provider + OpenRouter)
                 const cost = usage.cost ?? usage.total_cost ?? 0;
                 const upstreamCost = usage.cost_details?.upstream_inference_cost ?? 0;
-                // Use upstream cost for running total if regular cost is 0 (BYOK)
-                const effectiveCost = cost > 0 ? cost : upstreamCost;
+                // Sum both for total actual cost
+                const effectiveCost = cost + upstreamCost;
                 if (effectiveCost > 0) {
                     runningCostTotal += effectiveCost;
-                    const costStr = cost > 0 ? `$${cost.toFixed(6)}` : '$0.000000';
-                    const upstreamStr = upstreamCost > 0 ? ` (upstream: $${upstreamCost.toFixed(6)})` : '';
-                    console.log(`💰 Cost: ${costStr}${upstreamStr} | Running total: $${runningCostTotal.toFixed(6)}`);
+                    const costStr = `$${effectiveCost.toFixed(6)}`;
+                    const breakdown = upstreamCost > 0
+                        ? ` (provider: $${upstreamCost.toFixed(6)} + router: $${cost.toFixed(6)})`
+                        : '';
+                    console.log(`💰 Cost: ${costStr}${breakdown} | Running total: $${runningCostTotal.toFixed(6)}`);
                 }
             }
 
