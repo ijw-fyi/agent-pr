@@ -9,6 +9,7 @@ import { listDirectoryTool } from "../../tools/list-directory.js";
 import { grepTool } from "../../tools/grep.js";
 import { searchWebTool, isWebSearchAvailable } from "../../tools/search-web.js";
 import { readPreferences } from "../../preferences/index.js";
+import { addReactionToReviewComment } from "../../context/github.js";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 /**
@@ -94,6 +95,17 @@ export async function runPreferenceAgent(
     console.log(`Comments in chain: ${context.commentChain.length}`);
     console.log(`Tools available: ${tools.map(t => t.name).join(", ")}`);
     console.log("=".repeat(60));
+
+    // Add eyes reaction to show we're processing
+    const commentId = process.env.COMMENT_ID ? parseInt(process.env.COMMENT_ID, 10) : null;
+    if (commentId) {
+        try {
+            await addReactionToReviewComment(context.owner, context.repo, commentId, "eyes");
+            console.log("👀 Added eyes reaction to comment");
+        } catch (error) {
+            console.log("Could not add eyes reaction:", error);
+        }
+    }
 
     // Stream the agent execution to log each step
     let stepCount = 0;

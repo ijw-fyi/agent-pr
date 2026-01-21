@@ -268,3 +268,20 @@ export async function addReactionToComment(
         content: reaction,
     });
 }
+
+/**
+ * Add a reaction to a PR review comment
+ */
+export async function addReactionToReviewComment(
+    owner: string,
+    repo: string,
+    commentId: number,
+    reaction: "+1" | "-1" | "laugh" | "confused" | "heart" | "hooray" | "rocket" | "eyes"
+): Promise<void> {
+    await octokit.rest.reactions.createForPullRequestReviewComment({
+        owner,
+        repo,
+        comment_id: commentId,
+        content: reaction,
+    });
+}
