@@ -112,7 +112,24 @@ function patchOpenAIClient(client: any) {
         };
 
         try {
-            return await originalCreate(modifiedParams, options);
+            const response = await originalCreate(modifiedParams, options);
+
+            // Log cache stats from the raw response
+            const usage = response?.usage as any;
+            if (usage) {
+                console.log(`📊 API Usage: ${usage.prompt_tokens} in, ${usage.completion_tokens} out`);
+                if (usage.prompt_tokens_details) {
+                    const details = usage.prompt_tokens_details;
+                    if (details.cache_write_tokens > 0) {
+                        console.log(`📝 Cache Write: ${details.cache_write_tokens} tokens`);
+                    }
+                    if (details.cached_tokens > 0) {
+                        console.log(`📖 Cache Read: ${details.cached_tokens} tokens`);
+                    }
+                }
+            }
+
+            return response;
         } catch (error: any) {
             console.error("❌ OpenRouter API Error:");
             if (error.response) {
