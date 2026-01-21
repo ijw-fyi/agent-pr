@@ -17,6 +17,31 @@ AI-powered GitHub Action that reviews pull requests using an agentic loop. Trigg
 
 Create `.github/workflows/pr-review.yml`:
 
+#### Using shared workflows (recommended)
+```yaml
+name: PR Review
+
+on:
+  issue_comment:
+    types: [created, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  call-review:
+    uses: ijw-fyi/.github-workflows/.github/workflows/pr_review.yml@main
+    secrets: inherit
+```
+
+#### Full control 
+
 ```yaml
 name: PR Review
 
