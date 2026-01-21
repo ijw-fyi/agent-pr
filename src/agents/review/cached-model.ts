@@ -58,23 +58,31 @@ function patchOpenAIClient(client: any) {
     client.chat.completions.create = async function (params: any, options?: any) {
         console.log("🔄 Sending request with prompt caching");
 
-        // Find the last user message index
+        // Debug: show message roles
         const messages = params.messages as any[];
+        console.log(`   Messages: ${messages.map((m: any) => m.role).join(' → ')}`);
+
+        // Find the last user and tool message indices
         let lastUserIndex = -1;
+        let lastToolIndex = -1;
         for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].role === "user") {
+            if (messages[i].role === "user" && lastUserIndex === -1) {
                 lastUserIndex = i;
-                break;
             }
+            if (messages[i].role === "tool" && lastToolIndex === -1) {
+                lastToolIndex = i;
+            }
+            if (lastUserIndex !== -1 && lastToolIndex !== -1) break;
         }
 
         // Inject cache_control into messages
         const modifiedMessages = messages.map((msg: any, index: number) => {
-            // Cache: system (index 0), first user (index 1), and last user message
+            // Cache: system (index 0), first user (index 1), last user, and last tool message
             const shouldCache =
                 (msg.role === "system" && index === 0) ||
                 (msg.role === "user" && index === 1) ||
-                (msg.role === "user" && index === lastUserIndex && index > 1);
+                (msg.role === "user" && index === lastUserIndex && index > 1) ||
+                (msg.role === "tool" && index === lastToolIndex);
 
             if (shouldCache) {
                 // For string content, wrap it in array format with cache_control
@@ -120,11 +128,10 @@ function patchOpenAIClient(client: any) {
                 console.log(`📊 API Usage: ${usage.prompt_tokens} in, ${usage.completion_tokens} out`);
                 if (usage.prompt_tokens_details) {
                     const details = usage.prompt_tokens_details;
-                    if (details.cache_write_tokens > 0) {
-                        console.log(`📝 Cache Write: ${details.cache_write_tokens} tokens`);
-                    }
-                    if (details.cached_tokens > 0) {
-                        console.log(`📖 Cache Read: ${details.cached_tokens} tokens`);
+                    const write = details.cache_write_tokens || 0;
+                    const read = details.cached_tokens || 0;
+                    if (write > 0 || read > 0) {
+                        console.log(`   Cache: ${write > 0 ? `📝 Write ${write}` : ''}${write > 0 && read > 0 ? ', ' : ''}${read > 0 ? `📖 Read ${read}` : ''} tokens`);
                     }
                 }
             }
