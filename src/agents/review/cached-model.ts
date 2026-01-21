@@ -142,13 +142,18 @@ function patchOpenAIClient(client: any) {
             }
 
             // Log thinking/reasoning if present
-            const choice = response?.choices?.[0]?.message;
-            if (choice?.reasoning) {
+            const choice = response?.choices?.[0]?.message as any;
+            if (choice?.reasoning_details && Array.isArray(choice.reasoning_details)) {
+                for (const detail of choice.reasoning_details) {
+                    if (detail.type === 'reasoning.summary' && detail.summary) {
+                        console.log(`🧠 Thinking Summary: ${detail.summary.substring(0, 500)}...`);
+                    } else if (detail.type === 'reasoning.text' && detail.text) {
+                        console.log(`🧠 Thinking: ${detail.text.substring(0, 1000)}... (${detail.text.length} chars)`);
+                    }
+                }
+            } else if (choice?.reasoning) {
+                // Fallback for older format
                 console.log(`🧠 Thinking: ${choice.reasoning.substring(0, 1000)}... (${choice.reasoning.length} chars)`);
-            } else if (choice?.content) {
-                // Check if content has thinking blocks (OpenAI format might differ)
-                // Sometimes thinking comes as a separate part of content
-                // Just log if we see suspicious "thinking" or "reasoning" fields
             }
 
             return response;
