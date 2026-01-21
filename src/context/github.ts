@@ -35,10 +35,9 @@ export async function gatherPRContext(
     repo: string,
     prNumber: number
 ): Promise<PRContext> {
-    const [pr, diff, tree, reviewComments, issueComments, preferences] = await Promise.all([
+    const [pr, diff, reviewComments, issueComments, preferences] = await Promise.all([
         getPullRequest(owner, repo, prNumber),
         getPRDiff(owner, repo, prNumber),
-        getProjectTree(owner, repo, process.env.HEAD_SHA!),
         getReviewComments(owner, repo, prNumber),
         getConversation(owner, repo, prNumber),
         readPreferences(owner, repo),
@@ -56,7 +55,6 @@ export async function gatherPRContext(
         headSha: pr.head.sha,
         baseSha: pr.base.sha,
         diff,
-        fileTree: tree,
         existingComments: reviewComments,
         conversation: issueComments,
         preferences,
@@ -96,12 +94,33 @@ async function getPRDiff(
 }
 
 /**
- * Get the project file tree at a specific ref
+ * Extract changed file paths from a unified diff
+ */
+function extractChangedFilesFromDiff(diff: string): string[] {
+    const files: string[] = [];
+    const lines = diff.split('\n');
+
+    for (const line of lines) {
+        // Match diff headers like "diff --git a/path/to/file b/path/to/file"
+        const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+        if (match) {
+            // Use the "b" path (destination) as it represents the current state
+            files.push(match[2]);
+        }
+    }
+
+    return files;
+}
+
+/**
+ * Get a focused project file tree at a specific ref
+ * Only shows directories containing files from the diff + sibling context
  */
 async function getProjectTree(
     owner: string,
     repo: string,
-    ref: string
+    ref: string,
+    changedFiles?: string[]
 ): Promise<string> {
     try {
         const { data } = await octokit.rest.git.getTree({
@@ -111,17 +130,98 @@ async function getProjectTree(
             recursive: "true",
         });
 
-        // Format as a simple tree structure
-        const files = data.tree
+        const allFiles = data.tree
             .filter((item) => item.type === "blob")
-            .map((item) => item.path)
+            .map((item) => item.path!)
             .sort();
 
-        return files.join("\n");
+        // If no changed files, show limited tree (top-level + src/)
+        if (!changedFiles || changedFiles.length === 0) {
+            return formatTreeStructure(allFiles.slice(0, 100));
+        }
+
+        // Build set of relevant directories from changed files
+        const relevantDirs = new Set<string>();
+        for (const file of changedFiles) {
+            const parts = file.split('/');
+            // Add all parent directories
+            for (let i = 1; i <= parts.length; i++) {
+                relevantDirs.add(parts.slice(0, i).join('/'));
+            }
+        }
+
+        // Filter to files in relevant directories
+        const relevantFiles = allFiles.filter(file => {
+            const dir = file.includes('/') ? file.substring(0, file.lastIndexOf('/')) : '';
+            return relevantDirs.has(dir) || relevantDirs.has(file) || !file.includes('/');
+        });
+
+        // Limit to reasonable size
+        const maxFiles = 200;
+        const limitedFiles = relevantFiles.slice(0, maxFiles);
+
+        if (relevantFiles.length > maxFiles) {
+            return formatTreeStructure(limitedFiles) + `\n... and ${relevantFiles.length - maxFiles} more files`;
+        }
+
+        return formatTreeStructure(limitedFiles);
     } catch (error) {
         console.error("Error fetching project tree:", error);
         return "(Unable to fetch project tree)";
     }
+}
+
+/**
+ * Format files as a tree structure (more compact than flat list)
+ */
+function formatTreeStructure(files: string[]): string {
+    const tree: Record<string, any> = {};
+
+    // Build tree structure
+    for (const file of files) {
+        const parts = file.split('/');
+        let current = tree;
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            if (i === parts.length - 1) {
+                // File
+                current[part] = null;
+            } else {
+                // Directory
+                if (!current[part]) current[part] = {};
+                current = current[part];
+            }
+        }
+    }
+
+    // Render tree as string
+    function renderNode(node: Record<string, any>, prefix: string = ''): string[] {
+        const lines: string[] = [];
+        const entries = Object.entries(node).sort(([a], [b]) => {
+            // Directories first
+            const aIsDir = node[a] !== null;
+            const bIsDir = node[b] !== null;
+            if (aIsDir !== bIsDir) return bIsDir ? 1 : -1;
+            return a.localeCompare(b);
+        });
+
+        for (let i = 0; i < entries.length; i++) {
+            const [name, child] = entries[i];
+            const isLast = i === entries.length - 1;
+            const connector = isLast ? '└── ' : '├── ';
+            const childPrefix = prefix + (isLast ? '    ' : '│   ');
+
+            if (child === null) {
+                lines.push(prefix + connector + name);
+            } else {
+                lines.push(prefix + connector + name + '/');
+                lines.push(...renderNode(child, childPrefix));
+            }
+        }
+        return lines;
+    }
+
+    return renderNode(tree).join('\n');
 }
 
 /**

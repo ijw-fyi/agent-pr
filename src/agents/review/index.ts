@@ -134,11 +134,6 @@ ${context.description || "(No description provided)"}
 \`\`\`diff
 ${truncateDiff(context.diff)}
 \`\`\`
-
-## Project File Tree
-\`\`\`
-${context.fileTree}
-\`\`\`
 `;
 
     if (context.existingComments.length > 0) {
@@ -168,9 +163,11 @@ ${context.preferences}
     message += `
 ## Your Task
 Please review this pull request thoroughly. Use the tools available to:
-1. Read any files you need more context on
-2. Leave inline comments on specific lines where you find issues
-3. Submit your final review with a summary when done
+1. Use list_directory to explore the project structure if needed
+2. Read any files you need more context on
+3. Use grep to search for patterns across the codebase
+4. Leave inline comments on specific lines where you find issues
+5. Submit your final review with a summary when done
 
 Begin your review now.
 `;
