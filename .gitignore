@@ -6,7 +6,8 @@ dist/
 
 # IDE
 .idea/
-.vscode/
+# i actually want to commit .vscode
+# .vscode/
 *.swp
 *.swo
 

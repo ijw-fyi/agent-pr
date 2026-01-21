@@ -49,6 +49,9 @@ export function createCachedChatOpenAI(): ChatOpenAI {
     return model;
 }
 
+// Running cost total across all requests
+let runningCostTotal = 0;
+
 /**
  * Patch an OpenAI client to inject cache_control into messages
  */
@@ -122,12 +125,16 @@ function patchOpenAIClient(client: any) {
             reasoning: {
                 effort: "medium"
             },
+            // Enable usage accounting to get cost info
+            usage: {
+                include: true
+            },
         };
 
         try {
             const response = await originalCreate(modifiedParams, options);
 
-            // Log cache stats from the raw response
+            // Log cache stats and cost from the raw response
             const usage = response?.usage as any;
             if (usage) {
                 console.log(`📊 API Usage: ${usage.prompt_tokens} in, ${usage.completion_tokens} out`);
@@ -138,6 +145,21 @@ function patchOpenAIClient(client: any) {
                     if (write > 0 || read > 0) {
                         console.log(`   Cache: ${write > 0 ? `📝 Write ${write}` : ''}${write > 0 && read > 0 ? ', ' : ''}${read > 0 ? `📖 Read ${read}` : ''} tokens`);
                     }
+                }
+                // Log cost info
+                // For BYOK: cost = OpenRouter fee (5%), upstream = provider cost
+                // For non-BYOK: cost = total (provider + OpenRouter)
+                const cost = usage.cost ?? usage.total_cost ?? 0;
+                const upstreamCost = usage.cost_details?.upstream_inference_cost ?? 0;
+                // Sum both for total actual cost
+                const effectiveCost = cost + upstreamCost;
+                if (effectiveCost > 0) {
+                    runningCostTotal += effectiveCost;
+                    const costStr = `$${effectiveCost.toFixed(6)}`;
+                    const breakdown = upstreamCost > 0
+                        ? ` (provider: $${upstreamCost.toFixed(6)} + router: $${cost.toFixed(6)})`
+                        : '';
+                    console.log(`💰 Cost: ${costStr}${breakdown} | Running total: $${runningCostTotal.toFixed(6)}`);
                 }
             }
 
