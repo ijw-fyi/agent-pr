@@ -31,8 +31,6 @@ try {
         }
     }
 } catch {
-    // Complete fallback
-    version = "1.9.0";
 }
 
 export function getVersion(): string {
