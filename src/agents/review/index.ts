@@ -7,6 +7,7 @@ import type { PRContext } from "../../context/types.js";
 import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget } from "../../helpers/cached-model.js";
 import { createPRComment } from "../../context/github.js";
 import { processChunk } from "../../helpers/stream-utils.js";
+import { getVersion } from "../../helpers/version.js";
 
 /**
  * Count the number of lines of code changed in a diff
@@ -72,13 +73,16 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     // Build the initial context message
     const contextMessage = buildContextMessage(context);
 
-    console.log("=".repeat(60));
-    console.log("Starting PR Review Agent");
-    console.log("=".repeat(60));
+    console.log("::group::🚀 PR Review Agent Starting");
+    console.log(`Version: ${getVersion()}`);
     console.log(`Model: ${process.env.MODEL}`);
+    console.log(`PR: ${context.owner}/${context.repo}#${context.prNumber}`);
+    console.log(`SHA: ${process.env.HEAD_SHA || 'unknown'}`);
+    console.log(`Branch: ${context.headBranch} → ${context.baseBranch}`);
+    console.log(`Budget: $${budget.toFixed(2)}`);
     console.log(`Recursion Limit: ${recursionLimit}`);
-    console.log(`Tools available: ${tools.map(t => t.name).join(", ")}`);
-    console.log("=".repeat(60));
+    console.log(`Tools: ${tools.map(t => t.name).join(", ")}`);
+    console.log("::endgroup::");
 
     console.log("\n📝 User Context Message:");
     console.log("─".repeat(60));

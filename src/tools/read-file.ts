@@ -17,8 +17,8 @@ export const readFileTool = tool(
                 repo,
                 path,
                 ref,
-                startLine,
-                endLine
+                startLine ?? undefined,
+                endLine ?? undefined
             );
 
             if (startLine || endLine) {
@@ -40,10 +40,12 @@ export const readFileTool = tool(
             startLine: z
                 .number()
                 .optional()
+                .nullable()
                 .describe("Start line number (1-indexed). Omit to read from beginning."),
             endLine: z
                 .number()
                 .optional()
+                .nullable()
                 .describe("End line number (1-indexed, inclusive). Omit to read to end."),
         }),
     }

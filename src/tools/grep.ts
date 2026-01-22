@@ -10,12 +10,18 @@ import safeRegex from "safe-regex2";
  * Tool to search for patterns in the codebase
  */
 export const grepTool = tool(
-    async ({ pattern, path: searchPath = ".", type = "exact_match", caseInsensitive = false, padding = 0 }) => {
+    async ({ pattern, path: searchPath, type, caseInsensitive, padding }) => {
+        // Coerce nullable values to defaults
+        const effectivePath = searchPath ?? ".";
+        const effectiveType = type ?? "exact_match";
+        const effectiveCaseInsensitive = caseInsensitive ?? false;
+        const effectivePadding = padding ?? 0;
+
         const results: string[] = [];
         const MAX_RESULTS = 50;
         const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 
-        if (type === "regex") {
+        if (effectiveType === "regex") {
             if (!safeRegex(pattern)) {
                 return `Error: The provided regex pattern "${pattern}" is considered unsafe (potential ReDoS). Please use a simpler pattern.`;
             }
@@ -25,12 +31,12 @@ export const grepTool = tool(
             // Determine the glob pattern
             // If searchPath is a directory, append **/* to search recursively (like grep -r)
             // If it's a glob pattern, use it as is
-            let globPattern = searchPath;
+            let globPattern = effectivePath;
             try {
                 // Check if it's an existing directory
-                const stats = await fs.stat(searchPath);
+                const stats = await fs.stat(effectivePath);
                 if (stats.isDirectory()) {
-                    globPattern = path.join(searchPath, "**/*");
+                    globPattern = path.join(effectivePath, "**/*");
                 }
             } catch {
                 // If fs.stat fails, it's likely a glob pattern or non-existent path
@@ -70,11 +76,11 @@ export const grepTool = tool(
                     const lines = content.split("\n");
 
                     let regex: RegExp;
-                    if (type === "regex") {
-                        regex = new RegExp(pattern, caseInsensitive ? "i" : "");
+                    if (effectiveType === "regex") {
+                        regex = new RegExp(pattern, effectiveCaseInsensitive ? "i" : "");
                     } else {
                         const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        regex = new RegExp(escaped, caseInsensitive ? "i" : "");
+                        regex = new RegExp(escaped, effectiveCaseInsensitive ? "i" : "");
                     }
 
                     // Collect matching line indices
@@ -93,8 +99,8 @@ export const grepTool = tool(
                         const ranges: { start: number; end: number }[] = [];
 
                         for (const matchIndex of matches) {
-                            const start = Math.max(0, matchIndex - padding);
-                            const end = Math.min(lines.length - 1, matchIndex + padding);
+                            const start = Math.max(0, matchIndex - effectivePadding);
+                            const end = Math.min(lines.length - 1, matchIndex + effectivePadding);
 
                             if (!currentGroup) {
                                 currentGroup = { start, end };
@@ -131,7 +137,7 @@ export const grepTool = tool(
             }
 
             if (results.length === 0) {
-                return `No matches found for "${pattern}" in ${searchPath}`;
+                return `No matches found for "${pattern}" in ${effectivePath}`;
             }
 
             return `Found ${results.length} matches:\n${results.join("\n---\n")}`;
@@ -152,21 +158,25 @@ export const grepTool = tool(
             path: z
                 .string()
                 .optional()
+                .nullable()
                 .default(".")
-                .describe("The directory or file path to search in. Defaults to current directory (.). Examples: 'src/*.ts', 'src', '**/*.json'."),
+                .describe("The directory or file path to search in. Defaults to current directory (.). Examples: 'src/*.ts', 'src', '**/*.json'"),
             type: z
                 .enum(["regex", "exact_match"])
                 .optional()
+                .nullable()
                 .default("exact_match")
                 .describe("Type of search: 'regex' for regular expressions, 'exact_match' for literal string search."),
             caseInsensitive: z
                 .boolean()
                 .optional()
+                .nullable()
                 .default(false)
                 .describe("Whether to perform a case-insensitive search"),
             padding: z
                 .number()
                 .optional()
+                .nullable()
                 .default(0)
                 .describe("Number of context lines to show above and below each match. Defaults to 0."),
         }),

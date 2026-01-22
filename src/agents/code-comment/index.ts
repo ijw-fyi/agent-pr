@@ -8,6 +8,7 @@ import { readPreferences } from "../../preferences/index.js";
 import { addReactionToReviewComment } from "../../context/github.js";
 import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget } from "../../helpers/cached-model.js";
 import { processChunk } from "../../helpers/stream-utils.js";
+import { getVersion } from "../../helpers/version.js";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 /**
@@ -77,13 +78,16 @@ export async function runPreferenceAgent(
     // Build the context message
     const contextMessage = buildContextMessage(context);
 
-    console.log("=".repeat(60));
-    console.log("Starting Code Comment Agent");
-    console.log("=".repeat(60));
+    console.log("::group::🚀 Code Comment Agent Starting");
+    console.log(`Version: ${getVersion()}`);
+    console.log(`Model: ${process.env.MODEL}`);
+    console.log(`Repo: ${context.owner}/${context.repo}`);
+    console.log(`SHA: ${process.env.HEAD_SHA || 'unknown'}`);
     console.log(`File: ${context.filePath}`);
     console.log(`Comments in chain: ${context.commentChain.length}`);
-    console.log(`Tools available: ${tools.map(t => t.name).join(", ")}`);
-    console.log("=".repeat(60));
+    console.log(`Budget: $${budget.toFixed(2)}`);
+    console.log(`Tools: ${tools.map(t => t.name).join(", ")}`);
+    console.log("::endgroup::");
 
     // Add eyes reaction to show we're processing
     const commentId = process.env.COMMENT_ID ? parseInt(process.env.COMMENT_ID, 10) : null;
