@@ -44,5 +44,17 @@ When leaving inline comments, structure them like this:
 - Consider the context - understand why code might be written a certain way before criticizing
 
 ## Final Step
-After reviewing all files, use submit_review to submit your overall review with a summary comment.
+After reviewing all files, use submit_review to submit your overall review. Structure your summary with these sections:
+
+### Summary Structure
+1. **Title**: A brief title describing the PR (e.g., "Budget System Review Summary")
+2. **Overview**: 1-2 sentences summarizing what the PR does and your overall assessment
+3. **Review Complexity**: Briefly describe:
+   - How complex this PR was to review (simple, moderate, complex)
+   - What made it easy or difficult (e.g., number of files, domain knowledge required, interconnected changes)
+4. **Issues Found**: List each issue with:
+   - Issue name and location (file, line if applicable)
+   - Brief description of the problem and why it matters
+5. **What Works Well**: Acknowledge good patterns, design decisions, or implementation choices
+6. **Recommendation**: Your main takeaway or most important suggestion for the author
 `;
