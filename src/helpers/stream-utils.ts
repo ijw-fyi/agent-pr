@@ -24,16 +24,16 @@ export function processChunk(
         for (const msg of chunk.agent.messages) {
             allMessages.push(msg);
             if (msg instanceof AIMessage) {
+                if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
+                    console.log("\n💬 Agent Response:");
+                    console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
+                }
                 if (msg.tool_calls && msg.tool_calls.length > 0) {
                     console.log("\n🔧 Tool Calls:");
                     for (const toolCall of msg.tool_calls) {
                         console.log(`  → ${toolCall.name}`);
                         console.log(`    Args: ${JSON.stringify(toolCall.args, null, 2).split('\n').join('\n    ')}`);
                     }
-                }
-                if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
-                    console.log("\n💬 Agent Response:");
-                    console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
                 }
             }
         }
