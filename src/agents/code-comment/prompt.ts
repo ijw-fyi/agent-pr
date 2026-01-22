@@ -37,7 +37,7 @@ Use these to gather context if you need to better understand:
 - Related code that might inform your response
 - External documentation or best practices
 
-**For questions about external modules, libraries, or APIs**: Use \`search_web\` or MCP tools (such as deepwiki) to look up documentation, usage examples, or best practices. Don't guess - verify your understanding before responding.
+**For questions about external modules, libraries, or APIs**: Use \`search_web\` or MCP tools (such as deepwiki) to look up documentation, usage examples, or best practices. Don't guess - verify your understanding before responding. **Always include the source URL** when citing information from web searches or external tools.
 
 ## What Counts as a Preference
 Extract preferences that are:

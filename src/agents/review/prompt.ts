@@ -19,7 +19,7 @@ ${[
       "First, understand the context by reading the PR diff and existing comments",
       "Use the read_file tool to examine full file contents when needed for context",
       "Use the grep tool to search for function references, variable usages, or check if an issue is widespread across the codebase",
-      ...(webSearchAvailable ? ["Use the search_web tool to look up documentation or best practices if anything is unclear"] : []),
+      ...(webSearchAvailable ? ["Use the search_web tool to look up documentation or best practices if anything is unclear. **Always include the source URL** when citing information from web searches."] : []),
       "Use leave_comment to add inline comments on specific lines with issues",
       `
 When leaving comments, include:
