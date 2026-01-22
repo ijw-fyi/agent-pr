@@ -7,6 +7,7 @@ import { tools as reviewTools } from "../../tools/index.js";
 import { readPreferences } from "../../preferences/index.js";
 import { addReactionToReviewComment } from "../../context/github.js";
 import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget } from "../../helpers/cached-model.js";
+import { processChunk } from "../../helpers/stream-utils.js";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 /**
@@ -95,61 +96,23 @@ export async function runPreferenceAgent(
         }
     }
 
-    // Stream the agent execution to log each step
+    // Stream the agent execution
     let stepCount = 0;
+    const allMessages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+        new SystemMessage(systemPrompt),
+        new HumanMessage(contextMessage),
+    ];
+
     const stream = await agent.stream(
-        {
-            messages: [
-                new SystemMessage(systemPrompt),
-                new HumanMessage(contextMessage),
-            ],
-        },
-        {
-            recursionLimit,
-        }
+        { messages: allMessages },
+        { recursionLimit }
     );
 
     let budgetExceeded = false;
     for await (const chunk of stream) {
         stepCount++;
-        console.log(`\n${"─".repeat(60)}`);
-        console.log(`Step ${stepCount}`);
-        console.log("─".repeat(60));
+        processChunk(chunk, stepCount, allMessages);
 
-        // Log agent messages (LLM responses)
-        if (chunk.agent?.messages) {
-            for (const msg of chunk.agent.messages) {
-                if (msg instanceof AIMessage) {
-                    // Log tool calls
-                    if (msg.tool_calls && msg.tool_calls.length > 0) {
-                        console.log("\n🔧 Tool Calls:");
-                        for (const toolCall of msg.tool_calls) {
-                            console.log(`  → ${toolCall.name}`);
-                            console.log(`    Args: ${JSON.stringify(toolCall.args, null, 2).split('\n').join('\n    ')}`);
-                        }
-                    }
-
-                    // Log LLM text response
-                    if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
-                        console.log("\n💬 Agent Response:");
-                        console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
-                    }
-                }
-            }
-        }
-
-        // Log tool results
-        if (chunk.tools?.messages) {
-            for (const msg of chunk.tools.messages) {
-                if (msg instanceof ToolMessage) {
-                    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-                    console.log(`\n📤 Tool Result (${msg.name}):`);
-                    console.log(`  ${content.substring(0, 300)}${content.length > 300 ? '...' : ''}`);
-                }
-            }
-        }
-
-        // Check budget after each step
         if (!budgetExceeded && isOverBudget()) {
             budgetExceeded = true;
             const cost = getRunningCost();
@@ -158,54 +121,19 @@ export async function runPreferenceAgent(
         }
     }
 
-    // If budget was exceeded, give agent one more turn to wrap up
+    // If budget exceeded, continue with wrap-up message
     if (budgetExceeded) {
-        console.log("\n📝 Sending wrap-up request to agent...");
+        console.log("\n📝 Adding wrap-up message and continuing...");
+        allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. Wrap up soon by submitting your review with your findings so far. Focus on the most important issues."));
+
         const wrapUpStream = await agent.stream(
-            {
-                messages: [
-                    new SystemMessage(systemPrompt),
-                    new HumanMessage(contextMessage),
-                    new HumanMessage("BUDGET NOTICE: You are approaching your budget limit. Please wrap up soon by replying or saving any preferences you've identified. Focus on the most important action."),
-                ],
-            },
-            {
-                recursionLimit: 10, // Limited recursion for wrap-up
-            }
+            { messages: allMessages },
+            { recursionLimit: 10 }
         );
 
         for await (const chunk of wrapUpStream) {
             stepCount++;
-            console.log(`\n${"─".repeat(60)}`);
-            console.log(`Step ${stepCount} (wrap-up)`);
-            console.log("─".repeat(60));
-
-            if (chunk.agent?.messages) {
-                for (const msg of chunk.agent.messages) {
-                    if (msg instanceof AIMessage) {
-                        if (msg.tool_calls && msg.tool_calls.length > 0) {
-                            console.log("\n🔧 Tool Calls:");
-                            for (const toolCall of msg.tool_calls) {
-                                console.log(`  → ${toolCall.name}`);
-                            }
-                        }
-                        if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
-                            console.log("\n💬 Agent Response:");
-                            console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
-                        }
-                    }
-                }
-            }
-
-            if (chunk.tools?.messages) {
-                for (const msg of chunk.tools.messages) {
-                    if (msg instanceof ToolMessage) {
-                        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-                        console.log(`\n📤 Tool Result (${msg.name}):`);
-                        console.log(`  ${content.substring(0, 300)}${content.length > 300 ? '...' : ''}`);
-                    }
-                }
-            }
+            processChunk(chunk, stepCount, allMessages, true);
         }
     }
 
