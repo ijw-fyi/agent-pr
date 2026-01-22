@@ -21,8 +21,8 @@ export const leaveCommentTool = tool(
                 path,
                 line,
                 body,
-                side as "LEFT" | "RIGHT",
-                startLine
+                (side ?? "RIGHT") as "LEFT" | "RIGHT",
+                startLine ?? undefined
             );
 
             const lineDesc = startLine
@@ -55,6 +55,8 @@ export const leaveCommentTool = tool(
                 ),
             side: z
                 .enum(["LEFT", "RIGHT"])
+                .optional()
+                .nullable()
                 .default("RIGHT")
                 .describe(
                     "Which side of the diff to comment on. RIGHT for additions (green), LEFT for deletions (red). Usually RIGHT."
@@ -62,6 +64,7 @@ export const leaveCommentTool = tool(
             startLine: z
                 .number()
                 .optional()
+                .nullable()
                 .describe(
                     "For multi-line comments: the starting line number. Must be less than 'line' parameter."
                 ),
