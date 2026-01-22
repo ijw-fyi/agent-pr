@@ -136,11 +136,14 @@ export async function runPreferenceAgent(
 
     // If we broke out due to budget, create a fresh agent for wrap-up
     if (budgetExceeded) {
-        console.log("\n📝 Creating fresh agent for wrap-up...");
+        console.log("\n📝 Creating fresh model and agent for wrap-up...");
 
-        // Create a new agent instance for wrap-up
+        // Create a completely fresh model instance to avoid any state issues
+        const wrapUpModel = createCachedChatOpenAI();
+
+        // Create a new agent instance with the fresh model
         const wrapUpAgent = createReactAgent({
-            llm: model,
+            llm: wrapUpModel,
             tools,
         });
 

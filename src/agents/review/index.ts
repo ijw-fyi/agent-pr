@@ -147,7 +147,7 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
                 stepCount++;
                 processChunk(chunk, stepCount, allMessages);
             }
-            console.log("� Wrap-up complete");
+            console.log("📝 Wrap-up complete");
         } catch (error) {
             console.error("Wrap-up error:", error);
         }

@@ -10,16 +10,14 @@ import { AIMessage, ToolMessage } from "@langchain/core/messages";
  * @param chunk - The stream chunk from agent.stream()
  * @param stepNum - Current step number for logging
  * @param allMessages - Array to collect messages for history preservation
- * @param isWrapUp - If true, reduces verbosity (skips tool args)
  */
 export function processChunk(
     chunk: any,
     stepNum: number,
-    allMessages: any[],
-    isWrapUp: boolean = false
+    allMessages: any[]
 ): void {
     console.log(`\n${"─".repeat(60)}`);
-    console.log(`Step ${stepNum}${isWrapUp ? ' (wrap-up)' : ''}`);
+    console.log(`Step ${stepNum}`);
     console.log("─".repeat(60));
 
     if (chunk.agent?.messages) {
