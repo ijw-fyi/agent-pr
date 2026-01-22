@@ -6,7 +6,8 @@ import { replyToCommentTool } from "../../tools/reply-to-comment.js";
 import { tools as reviewTools } from "../../tools/index.js";
 import { readPreferences } from "../../preferences/index.js";
 import { addReactionToReviewComment } from "../../context/github.js";
-import { createCachedChatOpenAI } from "../../helpers/cached-model.js";
+import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget } from "../../helpers/cached-model.js";
+import { processChunk } from "../../helpers/stream-utils.js";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 /**
@@ -46,6 +47,11 @@ export async function runPreferenceAgent(
     context: PreferenceContext,
     recursionLimit: number = 100
 ): Promise<void> {
+    // Reset cost tracking for this run
+    resetRunningCost();
+    const budget = getBudget();
+    console.log(`💵 Budget: $${budget.toFixed(2)}`);
+
     // Create the model with OpenRouter backend and prompt caching
     const model = createCachedChatOpenAI();
 
@@ -90,62 +96,77 @@ export async function runPreferenceAgent(
         }
     }
 
-    // Stream the agent execution to log each step
+    // Stream the agent execution
     let stepCount = 0;
+    const allMessages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+        new SystemMessage(systemPrompt),
+        new HumanMessage(contextMessage),
+    ];
+
+    // Use AbortController to allow proper cancellation of the stream
+    const abortController = new AbortController();
+
     const stream = await agent.stream(
-        {
-            messages: [
-                new SystemMessage(systemPrompt),
-                new HumanMessage(contextMessage),
-            ],
-        },
-        {
-            recursionLimit,
-        }
+        { messages: allMessages },
+        { recursionLimit, signal: abortController.signal }
     );
 
+    let budgetExceeded = false;
     for await (const chunk of stream) {
         stepCount++;
-        console.log(`\n${"─".repeat(60)}`);
-        console.log(`Step ${stepCount}`);
-        console.log("─".repeat(60));
+        processChunk(chunk, stepCount, allMessages);
 
-        // Log agent messages (LLM responses)
-        if (chunk.agent?.messages) {
-            for (const msg of chunk.agent.messages) {
-                if (msg instanceof AIMessage) {
-                    // Log tool calls
-                    if (msg.tool_calls && msg.tool_calls.length > 0) {
-                        console.log("\n🔧 Tool Calls:");
-                        for (const toolCall of msg.tool_calls) {
-                            console.log(`  → ${toolCall.name}`);
-                            console.log(`    Args: ${JSON.stringify(toolCall.args, null, 2).split('\n').join('\n    ')}`);
-                        }
-                    }
-
-                    // Log LLM text response
-                    if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
-                        console.log("\n💬 Agent Response:");
-                        console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
-                    }
-                }
-            }
+        // Check budget after each step (only flag once)
+        if (!budgetExceeded && isOverBudget()) {
+            budgetExceeded = true;
+            const cost = getRunningCost();
+            console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - will wrap up after current tool calls`);
         }
 
-        // Log tool results
-        if (chunk.tools?.messages) {
-            for (const msg of chunk.tools.messages) {
-                if (msg instanceof ToolMessage) {
-                    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-                    console.log(`\n📤 Tool Result (${msg.name}):`);
-                    console.log(`  ${content.substring(0, 300)}${content.length > 300 ? '...' : ''}`);
-                }
-            }
+        // If budget exceeded and we just got tool results, inject wrap-up and break
+        if (budgetExceeded && chunk.tools?.messages) {
+            console.log("\n📝 Injecting wrap-up message after tool results...");
+            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings and respond to the user or save any preferences you've identified."));
+            // Abort the stream to stop background processing
+            console.log("🛑 Aborting original stream...");
+            abortController.abort();
+            break;
         }
     }
 
+    // If we broke out due to budget, create a fresh agent for wrap-up
+    if (budgetExceeded) {
+        console.log("\n📝 Creating fresh model and agent for wrap-up...");
+
+        // Create a completely fresh model instance to avoid any state issues
+        const wrapUpModel = createCachedChatOpenAI();
+
+        // Create a new agent instance with the fresh model
+        const wrapUpAgent = createReactAgent({
+            llm: wrapUpModel,
+            tools,
+        });
+
+        try {
+            const wrapUpStream = await wrapUpAgent.stream(
+                { messages: allMessages },
+                { recursionLimit: 20 }
+            );
+
+            for await (const chunk of wrapUpStream) {
+                stepCount++;
+                processChunk(chunk, stepCount, allMessages);
+            }
+            console.log("📝 Wrap-up complete");
+        } catch (error) {
+            console.error("Wrap-up error:", error);
+        }
+    }
+
+    const finalCost = getRunningCost();
     console.log(`\n${"=".repeat(60)}`);
     console.log(`Code Comment Agent completed. Total steps: ${stepCount}`);
+    console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
     console.log("=".repeat(60));
 }
 

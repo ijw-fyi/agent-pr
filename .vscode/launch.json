@@ -15,7 +15,8 @@
                 "REPO_OWNER": "${input:repoOwner}",
                 "REPO_NAME": "${input:repoName}",
                 "PR_NUMBER": "${input:prNumber}",
-                "MODEL": "${input:model}"
+                "MODEL": "${input:model}",
+                "AGENT_PR_BUDGET": "${input:budget}"
             },
             "console": "integratedTerminal"
         }
@@ -44,6 +45,12 @@
             "type": "promptString",
             "description": "Model to use",
             "default": "anthropic/claude-sonnet-4.5"
+        },
+        {
+            "id": "budget",
+            "type": "promptString",
+            "description": "Budget limit in USD",
+            "default": "1"
         }
     ]
 }
