@@ -31,8 +31,6 @@ try {
         }
     }
 } catch {
-    // Complete fallback
-    version = "UNKNOWN";
 }
 
 export function getVersion(): string {
