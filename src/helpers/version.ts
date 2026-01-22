@@ -32,7 +32,7 @@ try {
     }
 } catch {
     // Complete fallback
-    version = "1.9.0";
+    version = "UNKNOWN";
 }
 
 export function getVersion(): string {
