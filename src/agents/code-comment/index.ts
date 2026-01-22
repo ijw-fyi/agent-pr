@@ -103,9 +103,12 @@ export async function runPreferenceAgent(
         new HumanMessage(contextMessage),
     ];
 
+    // Use AbortController to allow proper cancellation of the stream
+    const abortController = new AbortController();
+
     const stream = await agent.stream(
         { messages: allMessages },
-        { recursionLimit }
+        { recursionLimit, signal: abortController.signal }
     );
 
     let budgetExceeded = false;
@@ -113,27 +116,47 @@ export async function runPreferenceAgent(
         stepCount++;
         processChunk(chunk, stepCount, allMessages);
 
+        // Check budget after each step (only flag once)
         if (!budgetExceeded && isOverBudget()) {
             budgetExceeded = true;
             const cost = getRunningCost();
-            console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - requesting wrap up`);
+            console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - will wrap up after current tool calls`);
+        }
+
+        // If budget exceeded and we just got tool results, inject wrap-up and break
+        if (budgetExceeded && chunk.tools?.messages) {
+            console.log("\n📝 Injecting wrap-up message after tool results...");
+            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings and respond to the user or save any preferences you've identified."));
+            // Abort the stream to stop background processing
+            console.log("🛑 Aborting original stream...");
+            abortController.abort();
             break;
         }
     }
 
-    // If budget exceeded, continue with wrap-up message
+    // If we broke out due to budget, create a fresh agent for wrap-up
     if (budgetExceeded) {
-        console.log("\n📝 Adding wrap-up message and continuing...");
-        allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. Wrap up soon by submitting your review with your findings so far. Focus on the most important issues."));
+        console.log("\n📝 Creating fresh agent for wrap-up...");
 
-        const wrapUpStream = await agent.stream(
-            { messages: allMessages },
-            { recursionLimit: 10 }
-        );
+        // Create a new agent instance for wrap-up
+        const wrapUpAgent = createReactAgent({
+            llm: model,
+            tools,
+        });
 
-        for await (const chunk of wrapUpStream) {
-            stepCount++;
-            processChunk(chunk, stepCount, allMessages, true);
+        try {
+            const wrapUpStream = await wrapUpAgent.stream(
+                { messages: allMessages },
+                { recursionLimit: 20 }
+            );
+
+            for await (const chunk of wrapUpStream) {
+                stepCount++;
+                processChunk(chunk, stepCount, allMessages);
+            }
+            console.log("📝 Wrap-up complete");
+        } catch (error) {
+            console.error("Wrap-up error:", error);
         }
     }
 

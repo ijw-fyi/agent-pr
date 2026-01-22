@@ -98,6 +98,13 @@ function patchOpenAIClient(client: any) {
     const originalCreate = client.chat.completions.create.bind(client.chat.completions);
 
     client.chat.completions.create = async function (params: any, options?: any) {
+        // If streaming is requested, pass through to original without modification
+        // We can't intercept the stream easily, so just let it flow
+        if (params.stream) {
+            console.log("🔄 Sending streaming request (pass-through)");
+            return originalCreate(params, options);
+        }
+
         console.log("🔄 Sending request with prompt caching");
 
         // Debug: show message roles
