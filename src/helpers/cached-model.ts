@@ -49,8 +49,47 @@ export function createCachedChatOpenAI(): ChatOpenAI {
     return model;
 }
 
-// Running cost total across all requests
+// Running totals across all requests
 let runningCostTotal = 0;
+let runningInputTokens = 0;
+let runningOutputTokens = 0;
+
+/**
+ * Get the current running cost total
+ */
+export function getRunningCost(): number {
+    return runningCostTotal;
+}
+
+/**
+ * Reset running totals (call at start of new agent run)
+ */
+export function resetRunningCost(): void {
+    runningCostTotal = 0;
+    runningInputTokens = 0;
+    runningOutputTokens = 0;
+}
+
+/**
+ * Get the budget limit from env var, defaults to $1.00 USD
+ */
+export function getBudget(): number {
+    const budgetStr = process.env.AGENT_PR_BUDGET;
+    if (budgetStr) {
+        const parsed = parseFloat(budgetStr);
+        if (!isNaN(parsed) && parsed > 0) {
+            return parsed;
+        }
+    }
+    return 1.0; // Default $1 USD
+}
+
+/**
+ * Check if current cost exceeds budget
+ */
+export function isOverBudget(): boolean {
+    return runningCostTotal >= getBudget();
+}
 
 /**
  * Patch an OpenAI client to inject cache_control into messages
@@ -137,7 +176,11 @@ function patchOpenAIClient(client: any) {
             // Log cache stats and cost from the raw response
             const usage = response?.usage as any;
             if (usage) {
-                console.log(`📊 API Usage: ${usage.prompt_tokens} in, ${usage.completion_tokens} out`);
+                const inputTokens = usage.prompt_tokens || 0;
+                const outputTokens = usage.completion_tokens || 0;
+                runningInputTokens += inputTokens;
+                runningOutputTokens += outputTokens;
+                console.log(`📊 API Usage: ${inputTokens} in, ${outputTokens} out | Total: ${runningInputTokens} in, ${runningOutputTokens} out`);
                 if (usage.prompt_tokens_details) {
                     const details = usage.prompt_tokens_details;
                     const write = details.cache_write_tokens || 0;

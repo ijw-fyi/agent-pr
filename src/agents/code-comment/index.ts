@@ -6,7 +6,7 @@ import { replyToCommentTool } from "../../tools/reply-to-comment.js";
 import { tools as reviewTools } from "../../tools/index.js";
 import { readPreferences } from "../../preferences/index.js";
 import { addReactionToReviewComment } from "../../context/github.js";
-import { createCachedChatOpenAI } from "../../helpers/cached-model.js";
+import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget } from "../../helpers/cached-model.js";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 /**
@@ -46,6 +46,11 @@ export async function runPreferenceAgent(
     context: PreferenceContext,
     recursionLimit: number = 100
 ): Promise<void> {
+    // Reset cost tracking for this run
+    resetRunningCost();
+    const budget = getBudget();
+    console.log(`💵 Budget: $${budget.toFixed(2)}`);
+
     // Create the model with OpenRouter backend and prompt caching
     const model = createCachedChatOpenAI();
 
@@ -104,6 +109,7 @@ export async function runPreferenceAgent(
         }
     );
 
+    let budgetExceeded = false;
     for await (const chunk of stream) {
         stepCount++;
         console.log(`\n${"─".repeat(60)}`);
@@ -142,10 +148,71 @@ export async function runPreferenceAgent(
                 }
             }
         }
+
+        // Check budget after each step
+        if (!budgetExceeded && isOverBudget()) {
+            budgetExceeded = true;
+            const cost = getRunningCost();
+            console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - requesting wrap up`);
+            break;
+        }
     }
 
+    // If budget was exceeded, give agent one more turn to wrap up
+    if (budgetExceeded) {
+        console.log("\n📝 Sending wrap-up request to agent...");
+        const wrapUpStream = await agent.stream(
+            {
+                messages: [
+                    new SystemMessage(systemPrompt),
+                    new HumanMessage(contextMessage),
+                    new HumanMessage("BUDGET NOTICE: You are approaching your budget limit. Please wrap up soon by replying or saving any preferences you've identified. Focus on the most important action."),
+                ],
+            },
+            {
+                recursionLimit: 10, // Limited recursion for wrap-up
+            }
+        );
+
+        for await (const chunk of wrapUpStream) {
+            stepCount++;
+            console.log(`\n${"─".repeat(60)}`);
+            console.log(`Step ${stepCount} (wrap-up)`);
+            console.log("─".repeat(60));
+
+            if (chunk.agent?.messages) {
+                for (const msg of chunk.agent.messages) {
+                    if (msg instanceof AIMessage) {
+                        if (msg.tool_calls && msg.tool_calls.length > 0) {
+                            console.log("\n🔧 Tool Calls:");
+                            for (const toolCall of msg.tool_calls) {
+                                console.log(`  → ${toolCall.name}`);
+                            }
+                        }
+                        if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
+                            console.log("\n💬 Agent Response:");
+                            console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
+                        }
+                    }
+                }
+            }
+
+            if (chunk.tools?.messages) {
+                for (const msg of chunk.tools.messages) {
+                    if (msg instanceof ToolMessage) {
+                        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                        console.log(`\n📤 Tool Result (${msg.name}):`);
+                        console.log(`  ${content.substring(0, 300)}${content.length > 300 ? '...' : ''}`);
+                    }
+                }
+            }
+        }
+    }
+
+    const finalCost = getRunningCost();
     console.log(`\n${"=".repeat(60)}`);
     console.log(`Code Comment Agent completed. Total steps: ${stepCount}`);
+    console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
     console.log("=".repeat(60));
 }
 

@@ -4,7 +4,7 @@ import { getSystemPrompt } from "./prompt.js";
 import { tools } from "../../tools/index.js";
 import { isWebSearchAvailable } from "../../tools/search-web.js";
 import type { PRContext } from "../../context/types.js";
-import { createCachedChatOpenAI } from "../../helpers/cached-model.js";
+import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget } from "../../helpers/cached-model.js";
 import { createPRComment } from "../../context/github.js";
 
 /**
@@ -54,6 +54,11 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
         }
     }
 
+    // Reset cost tracking for this run
+    resetRunningCost();
+    const budget = getBudget();
+    console.log(`💵 Budget: $${budget.toFixed(2)}`);
+
     // Create the model with OpenRouter backend and prompt caching
     const model = createCachedChatOpenAI();
 
@@ -93,6 +98,7 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
         }
     );
 
+    let budgetExceeded = false;
     for await (const chunk of stream) {
         stepCount++;
         console.log(`\n${"─".repeat(60)}`);
@@ -131,10 +137,71 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
                 }
             }
         }
+
+        // Check budget after each step
+        if (!budgetExceeded && isOverBudget()) {
+            budgetExceeded = true;
+            const cost = getRunningCost();
+            console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - requesting wrap up`);
+            break;
+        }
     }
 
+    // If budget was exceeded, give agent one more turn to wrap up
+    if (budgetExceeded) {
+        console.log("\n📝 Sending wrap-up request to agent...");
+        const wrapUpStream = await agent.stream(
+            {
+                messages: [
+                    new SystemMessage(getSystemPrompt(isWebSearchAvailable())),
+                    new HumanMessage(contextMessage),
+                    new HumanMessage("BUDGET NOTICE: You are approaching your budget limit. Please wrap up soon by submitting your review with your findings so far. Focus on the most important issues."),
+                ],
+            },
+            {
+                recursionLimit: 10, // Limited recursion for wrap-up
+            }
+        );
+
+        for await (const chunk of wrapUpStream) {
+            stepCount++;
+            console.log(`\n${"─".repeat(60)}`);
+            console.log(`Step ${stepCount} (wrap-up)`);
+            console.log("─".repeat(60));
+
+            if (chunk.agent?.messages) {
+                for (const msg of chunk.agent.messages) {
+                    if (msg instanceof AIMessage) {
+                        if (msg.tool_calls && msg.tool_calls.length > 0) {
+                            console.log("\n🔧 Tool Calls:");
+                            for (const toolCall of msg.tool_calls) {
+                                console.log(`  → ${toolCall.name}`);
+                            }
+                        }
+                        if (msg.content && typeof msg.content === 'string' && msg.content.trim()) {
+                            console.log("\n💬 Agent Response:");
+                            console.log(`  ${msg.content.substring(0, 500)}${msg.content.length > 500 ? '...' : ''}`);
+                        }
+                    }
+                }
+            }
+
+            if (chunk.tools?.messages) {
+                for (const msg of chunk.tools.messages) {
+                    if (msg instanceof ToolMessage) {
+                        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                        console.log(`\n📤 Tool Result (${msg.name}):`);
+                        console.log(`  ${content.substring(0, 300)}${content.length > 300 ? '...' : ''}`);
+                    }
+                }
+            }
+        }
+    }
+
+    const finalCost = getRunningCost();
     console.log(`\n${"=".repeat(60)}`);
     console.log(`Review completed. Total steps: ${stepCount}`);
+    console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
     console.log("=".repeat(60));
 }
 
