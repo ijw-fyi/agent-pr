@@ -42,6 +42,7 @@ ${webSearchAvailable ? `- **"What's the best practice for X?"** → search_web (
 3. **Verifying broader patterns**: grep (catches strings/comments that find_references misses)
 
 ### Best Practices
+- **Use parallel tool calls**: When investigating multiple files or symbols, call tools in parallel rather than sequentially—this dramatically speeds up your review and lower the cost.
 - Prefer get_file_outline before read_file to understand structure first
 - Prefer view_code_item for specific symbols over reading entire files
 - Use find_references for identifier usage, fall back to grep if it misses something
