@@ -62,6 +62,20 @@ export function getRunningCost(): number {
 }
 
 /**
+ * Get the current running input tokens
+ */
+export function getRunningInputTokens(): number {
+    return runningInputTokens;
+}
+
+/**
+ * Get the current running output tokens
+ */
+export function getRunningOutputTokens(): number {
+    return runningOutputTokens;
+}
+
+/**
  * Reset running totals (call at start of new agent run)
  */
 export function resetRunningCost(): void {
