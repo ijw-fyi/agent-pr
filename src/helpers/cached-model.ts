@@ -53,6 +53,8 @@ export function createCachedChatOpenAI(): ChatOpenAI {
 let runningCostTotal = 0;
 let runningInputTokens = 0;
 let runningOutputTokens = 0;
+let runningCacheReadTokens = 0;
+let runningCacheWriteTokens = 0;
 let callCount = 0;
 
 /**
@@ -77,12 +79,28 @@ export function getRunningOutputTokens(): number {
 }
 
 /**
+ * Get the current running cache read tokens
+ */
+export function getRunningCacheReadTokens(): number {
+    return runningCacheReadTokens;
+}
+
+/**
+ * Get the current running cache write tokens
+ */
+export function getRunningCacheWriteTokens(): number {
+    return runningCacheWriteTokens;
+}
+
+/**
  * Reset running totals (call at start of new agent run)
  */
 export function resetRunningCost(): void {
     runningCostTotal = 0;
     runningInputTokens = 0;
     runningOutputTokens = 0;
+    runningCacheReadTokens = 0;
+    runningCacheWriteTokens = 0;
     callCount = 0;
 }
 
@@ -208,6 +226,8 @@ function patchOpenAIClient(client: any) {
                     const details = usage.prompt_tokens_details;
                     const write = details.cache_write_tokens || 0;
                     const read = details.cached_tokens || 0;
+                    runningCacheWriteTokens += write;
+                    runningCacheReadTokens += read;
                     if (write > 0 || read > 0) {
                         console.log(`   Cache: ${write > 0 ? `📝 Write ${write}` : ''}${write > 0 && read > 0 ? ', ' : ''}${read > 0 ? `📖 Read ${read}` : ''} tokens`);
                     }
