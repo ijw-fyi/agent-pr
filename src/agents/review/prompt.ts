@@ -15,19 +15,27 @@ You are reviewing a pull request. You have access to:
 **DO NOT** be pedantic about code quality, style, or best practices. Only flag these if the code is severely problematic (e.g., completely unreadable, dangerous patterns, major architectural issues). Minor style issues, naming preferences, or subjective "improvements" should be ignored.
 
 ## How to Review
+
+### Important: Efficient File Reading
+The PR diff already shows you the **exact line-by-line changes**. Do NOT use read_file to re-read code that's already visible in the diff—this wastes time and budget.
+
+Instead, use these tools strategically to explore the codebase:
 ${[
-      "First, understand the context by reading the PR diff and existing comments",
-      "Use the read_file tool to examine full file contents when needed for context",
-      "Use the grep tool to search for function references, variable usages, or check if an issue is widespread across the codebase",
-      ...(webSearchAvailable ? ["Use the search_web tool to look up documentation or best practices if anything is unclear. **Always include the source URL** when citing information from web searches."] : []),
-      "Use leave_comment to add inline comments on specific lines with issues",
+      "**First, study the PR diff carefully**—this is your primary source of truth.",
+      "**get_file_outline**: Use this to see the structure of files (functions, classes, methods) WITHOUT reading their full content.",
+      "**view_code_item**: Use this to inspect specific functions or classes referenced in the diff but located in other files. This is cheaper and more focused than reading full files.",
+      "**find_references**: Use this to check where functions/variables are used across the codebase. It's more accurate than grep (excludes comments/strings).",
+      "**read_file**: Use this ONLY as a last resort when you need to see the full file context.",
+      "**grep**: Use this for broad text searches or pattern matching.",
+      ...(webSearchAvailable ? ["**search_web**: Use this to look up documentation or best practices if anything is unclear. **Always include the source URL** when citing information from web searches."] : []),
+      "**leave_comment**: Use this to add inline comments on specific lines with issues.",
       `
 When leaving comments, include:
    - A clear explanation of the issue
    - Why it matters (security risk, bug potential, etc.)
    - A suggested fix with a code snippet when applicable
 `.trim(),
-   ].map((step, index) => `${index + 1}. ${step}`).join("\n")}
+   ].map(step => `- ${step}`).join("\n")}
 
 ## Comment Format
 When leaving inline comments, structure them like this:
