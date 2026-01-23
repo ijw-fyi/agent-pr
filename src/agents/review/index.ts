@@ -4,7 +4,7 @@ import { getSystemPrompt } from "./prompt.js";
 import { tools } from "../../tools/index.js";
 import { isWebSearchAvailable } from "../../tools/search-web.js";
 import type { PRContext } from "../../context/types.js";
-import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens } from "../../helpers/cached-model.js";
+import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens } from "../../helpers/cached-model.js";
 import { createPRComment } from "../../context/github.js";
 import { processChunk } from "../../helpers/stream-utils.js";
 import { getVersion } from "../../helpers/version.js";
@@ -161,6 +161,9 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     const inputTokens = getRunningInputTokens();
     const outputTokens = getRunningOutputTokens();
     const totalTokens = inputTokens + outputTokens;
+    const cacheReadTokens = getRunningCacheReadTokens();
+    const cacheWriteTokens = getRunningCacheWriteTokens();
+    const cacheHitRate = inputTokens > 0 ? (cacheReadTokens / inputTokens * 100) : 0;
 
     // Calculate tool usage
     const toolUsage: Record<string, number> = {};
@@ -187,6 +190,7 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     console.log(`Review completed. Total steps: ${stepCount}`);
     console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
     console.log(`📊 Tokens: ${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output, ${totalTokens.toLocaleString()} total`);
+    console.log(`💾 Cache: ${cacheHitRate.toFixed(1)}% hit rate (${cacheReadTokens.toLocaleString()} read, ${cacheWriteTokens.toLocaleString()} write)`);
     console.log(`🔧 Tool Usage: ${totalToolCalls} calls${totalFailedCalls > 0 ? ` (${totalFailedCalls} failed)` : ''}`);
 
     if (totalToolCalls > 0) {
