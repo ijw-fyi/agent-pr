@@ -34,7 +34,12 @@ function formatOutline(path: string, symbols: CodeSymbol[]): string {
             variable: "var",
         }[symbol.kind] || symbol.kind;
 
-        lines.push(`[${kind}:${lineRange}] ${symbol.name}`);
+        // Include signature if available
+        if (symbol.signature) {
+            lines.push(`[${kind}:${lineRange}] ${symbol.signature}`);
+        } else {
+            lines.push(`[${kind}:${lineRange}] ${symbol.name}`);
+        }
     }
 
     return lines.join("\n");
