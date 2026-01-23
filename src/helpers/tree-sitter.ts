@@ -64,11 +64,11 @@ export async function initParser(): Promise<void> {
     // Provide locateFile to help find web-tree-sitter.wasm in bundled environments
     await TreeSitter.Parser.init({
         locateFile(scriptName: string) {
-            // Check bundled location first (action/web-tree-sitter/)
-            const bundledPath = join(__dirname, "..", "web-tree-sitter", scriptName);
+            // Check bundled location (action/node_modules/web-tree-sitter/)
+            const bundledPath = join(__dirname, "..", "node_modules", "web-tree-sitter", scriptName);
             if (existsSync(bundledPath)) return bundledPath;
 
-            // Development: node_modules
+            // Development: node_modules from CWD
             const devPath = join(process.cwd(), "node_modules", "web-tree-sitter", scriptName);
             if (existsSync(devPath)) return devPath;
 
