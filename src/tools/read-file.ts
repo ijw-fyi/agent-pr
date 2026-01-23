@@ -26,6 +26,7 @@ export const readFileTool = tool(
             }
             return `File: ${path}\n\n${content}`;
         } catch (error) {
+            console.error(`❌ Error in read_file:`, error);
             return `Error reading file ${path}: ${error instanceof Error ? error.message : "Unknown error"}`;
         }
     },

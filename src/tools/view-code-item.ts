@@ -44,6 +44,7 @@ export const viewCodeItemTool = tool(
 
             return `[${result.kind}:L${result.startLine}-${result.endLine}] ${result.name}\n${result.code}`;
         } catch (error) {
+            console.error(`❌ Error in view_code_item:`, error);
             return `Error: ${error instanceof Error ? error.message : "Unknown error"}`;
         }
     },

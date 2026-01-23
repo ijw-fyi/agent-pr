@@ -109,6 +109,7 @@ export const findReferencesTool = tool(
             return lines.join("\n");
 
         } catch (error) {
+            console.error(`❌ Error in find_references:`, error);
             return `Error: ${error instanceof Error ? error.message : "Unknown error"}`;
         }
     },

@@ -31,6 +31,7 @@ export const leaveCommentTool = tool(
 
             return `Successfully left comment on ${path} at ${lineDesc}`;
         } catch (error) {
+            console.error(`❌ Error in leave_comment:`, error);
             const message = error instanceof Error ? error.message : "Unknown error";
             return `Error leaving comment on ${path}: ${message}`;
         }
