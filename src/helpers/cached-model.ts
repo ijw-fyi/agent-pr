@@ -57,6 +57,19 @@ let runningCacheReadTokens = 0;
 let runningCacheWriteTokens = 0;
 let callCount = 0;
 
+// Store reasoning blocks by assistant message content (for multi-turn thinking preservation)
+// Key: hash of message content, Value: { reasoning, reasoning_details }
+const reasoningStore = new Map<string, { reasoning?: string; reasoning_details?: any[] }>();
+
+/**
+ * Simple hash function for message content to use as a key
+ */
+function hashContent(content: string | any[]): string {
+    const str = typeof content === 'string' ? content : JSON.stringify(content);
+    // Simple hash - just use first 100 chars + length for now
+    return `${str.substring(0, 100)}_${str.length}`;
+}
+
 /**
  * Get the current running cost total
  */
@@ -102,6 +115,7 @@ export function resetRunningCost(): void {
     runningCacheReadTokens = 0;
     runningCacheWriteTokens = 0;
     callCount = 0;
+    reasoningStore.clear();
 }
 
 /**
@@ -158,7 +172,7 @@ function patchOpenAIClient(client: any) {
             if (lastUserIndex !== -1 && lastToolIndex !== -1) break;
         }
 
-        // Inject cache_control into messages
+        // Inject cache_control into messages AND restore reasoning for assistant messages
         const modifiedMessages = messages.map((msg: any, index: number) => {
             // Cache: system (index 0), first user (index 1), last user, and last tool message
             const shouldCache =
@@ -167,26 +181,42 @@ function patchOpenAIClient(client: any) {
                 (msg.role === "user" && index === lastUserIndex && index > 1) ||
                 (msg.role === "tool" && index === lastToolIndex);
 
+            let result = msg;
+
+            // Inject stored reasoning into assistant messages (critical for multi-turn thinking)
+            if (msg.role === "assistant" && msg.content) {
+                const contentHash = hashContent(msg.content);
+                const storedReasoning = reasoningStore.get(contentHash);
+                if (storedReasoning) {
+                    result = {
+                        ...msg,
+                        ...(storedReasoning.reasoning && { reasoning: storedReasoning.reasoning }),
+                        ...(storedReasoning.reasoning_details && { reasoning_details: storedReasoning.reasoning_details })
+                    };
+                    console.log(`   📝 Restored reasoning for assistant message (${storedReasoning.reasoning?.length || 0} chars)`);
+                }
+            }
+
             if (shouldCache) {
                 // For string content, wrap it in array format with cache_control
-                if (typeof msg.content === "string") {
+                if (typeof result.content === "string") {
                     return {
-                        ...msg,
+                        ...result,
                         content: [
                             {
                                 type: "text",
-                                text: msg.content,
+                                text: result.content,
                                 cache_control: { type: "ephemeral" }
                             }
                         ]
                     };
                 }
                 // For array content, add cache_control to last element
-                if (Array.isArray(msg.content)) {
-                    const lastIdx = msg.content.length - 1;
+                if (Array.isArray(result.content)) {
+                    const lastIdx = result.content.length - 1;
                     return {
-                        ...msg,
-                        content: msg.content.map((block: any, i: number) =>
+                        ...result,
+                        content: result.content.map((block: any, i: number) =>
                             i === lastIdx
                                 ? { ...block, cache_control: { type: "ephemeral" } }
                                 : block
@@ -194,7 +224,7 @@ function patchOpenAIClient(client: any) {
                     };
                 }
             }
-            return msg;
+            return result;
         });
 
         const modifiedParams = {
@@ -249,7 +279,7 @@ function patchOpenAIClient(client: any) {
                 }
             }
 
-            // Log thinking/reasoning if present
+            // Log and store thinking/reasoning if present
             const choice = response?.choices?.[0]?.message as any;
             if (choice?.reasoning_details && Array.isArray(choice.reasoning_details)) {
                 for (const detail of choice.reasoning_details) {
@@ -262,6 +292,16 @@ function patchOpenAIClient(client: any) {
             } else if (choice?.reasoning) {
                 // Fallback for older format
                 console.log(`🧠 Thinking: ${choice.reasoning.substring(0, 1000)}... (${choice.reasoning.length} chars)`);
+            }
+
+            // Store reasoning for this assistant message (for multi-turn preservation)
+            if (choice?.content && (choice?.reasoning || choice?.reasoning_details)) {
+                const contentHash = hashContent(choice.content);
+                reasoningStore.set(contentHash, {
+                    reasoning: choice.reasoning,
+                    reasoning_details: choice.reasoning_details
+                });
+                console.log(`   💾 Stored reasoning for future turns (hash: ${contentHash.substring(0, 30)}...)`);
             }
 
             console.log("::endgroup::");
