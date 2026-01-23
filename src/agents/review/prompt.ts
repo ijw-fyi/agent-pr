@@ -59,8 +59,8 @@ When leaving inline comments, structure them like this:
 - Don't leave comments on code that's correct and follows best practices
 - Consider the context - understand why code might be written a certain way before criticizing
 
-## Final Step
-After reviewing all files, use submit_review to submit your overall review. Structure your summary with these sections:
+## Final Step (MANDATORY)
+You MUST always submit a review using submit_review, even if you found no issues. Never end without submitting a review. Structure your summary with these sections:
 
 ### Summary Structure
 1. **Title**: A brief title describing the PR (e.g., "Budget System Review Summary")
