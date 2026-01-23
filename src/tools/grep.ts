@@ -143,6 +143,7 @@ export const grepTool = tool(
             return `Found ${results.length} matches:\n${results.join("\n---\n")}`;
 
         } catch (error) {
+            console.error(`❌ Error in grep:`, error);
             const message = error instanceof Error ? error.message : "Unknown error";
             return `Error searching: ${message}`;
         }

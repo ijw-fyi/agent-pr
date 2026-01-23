@@ -164,13 +164,22 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
 
     // Calculate tool usage
     const toolUsage: Record<string, number> = {};
+    const failedToolUsage: Record<string, number> = {};
     let totalToolCalls = 0;
+    let totalFailedCalls = 0;
 
     for (const msg of allMessages) {
         if (msg instanceof ToolMessage && msg.name) {
             // Count actual tool executions
             toolUsage[msg.name] = (toolUsage[msg.name] || 0) + 1;
             totalToolCalls++;
+
+            // Check for failures
+            const content = typeof msg.content === 'string' ? msg.content : '';
+            if (content.startsWith('Error')) {
+                failedToolUsage[msg.name] = (failedToolUsage[msg.name] || 0) + 1;
+                totalFailedCalls++;
+            }
         }
     }
 
@@ -178,12 +187,24 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     console.log(`Review completed. Total steps: ${stepCount}`);
     console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
     console.log(`📊 Tokens: ${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output, ${totalTokens.toLocaleString()} total`);
-    console.log(`🔧 Tool Usage: ${totalToolCalls} calls`);
+    console.log(`🔧 Tool Usage: ${totalToolCalls} calls${totalFailedCalls > 0 ? ` (${totalFailedCalls} failed)` : ''}`);
+
     if (totalToolCalls > 0) {
         Object.entries(toolUsage)
             .sort(([, a], [, b]) => b - a)
             .forEach(([name, count]) => {
-                console.log(`  - ${name}: ${count}`);
+                const failed = failedToolUsage[name] || 0;
+                const failedStr = failed > 0 ? ` (⚠️ ${failed} failed)` : '';
+                console.log(`  - ${name}: ${count}${failedStr}`);
+            });
+    }
+
+    if (totalFailedCalls > 0) {
+        console.log(`\n❌ Failed Tools:`);
+        Object.entries(failedToolUsage)
+            .sort(([, a], [, b]) => b - a)
+            .forEach(([name, count]) => {
+                console.log(`  - ${name}: ${count} error(s)`);
             });
     }
     console.log("=".repeat(60));
@@ -253,7 +274,7 @@ Begin your review now.
  */
 function truncateDiff(diff: string): string {
     const MAX_LINES_PER_FILE = 500;
-    const MAX_CHARS_PER_FILE = 10000;
+    const MAX_CHARS_PER_FILE = 40000; // avg 80 characters per line
     const BINARY_EXTENSIONS = ['.wasm', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.pdf', '.zip', '.tar', '.gz'];
 
     // Split by "diff --git" at start of line, keeping the delimiter with each part

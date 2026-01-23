@@ -46,6 +46,7 @@ export const listDirectoryTool = tool(
             const header = normalizedPath ? `Contents of ${normalizedPath}/` : 'Repository root:';
             return `${header}\n\n${items.join('\n')}`;
         } catch (error: any) {
+            console.error(`❌ Error in list_directory:`, error);
             if (error.status === 404) {
                 return `Error: Directory '${path}' not found`;
             }

@@ -174,12 +174,21 @@ export async function runPreferenceAgent(
 
     // Calculate tool usage
     const toolUsage: Record<string, number> = {};
+    const failedToolUsage: Record<string, number> = {};
     let totalToolCalls = 0;
+    let totalFailedCalls = 0;
 
     for (const msg of allMessages) {
         if (msg instanceof ToolMessage && msg.name) {
             toolUsage[msg.name] = (toolUsage[msg.name] || 0) + 1;
             totalToolCalls++;
+
+            // Check for failures
+            const content = typeof msg.content === 'string' ? msg.content : '';
+            if (content.startsWith('Error')) {
+                failedToolUsage[msg.name] = (failedToolUsage[msg.name] || 0) + 1;
+                totalFailedCalls++;
+            }
         }
     }
 
@@ -187,12 +196,24 @@ export async function runPreferenceAgent(
     console.log(`Code Comment Agent completed. Total steps: ${stepCount}`);
     console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
     console.log(`📊 Tokens: ${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output, ${totalTokens.toLocaleString()} total`);
-    console.log(`🔧 Tool Usage: ${totalToolCalls} calls`);
+    console.log(`🔧 Tool Usage: ${totalToolCalls} calls${totalFailedCalls > 0 ? ` (${totalFailedCalls} failed)` : ''}`);
+
     if (totalToolCalls > 0) {
         Object.entries(toolUsage)
             .sort(([, a], [, b]) => b - a)
             .forEach(([name, count]) => {
-                console.log(`  - ${name}: ${count}`);
+                const failed = failedToolUsage[name] || 0;
+                const failedStr = failed > 0 ? ` (⚠️ ${failed} failed)` : '';
+                console.log(`  - ${name}: ${count}${failedStr}`);
+            });
+    }
+
+    if (totalFailedCalls > 0) {
+        console.log(`\n❌ Failed Tools:`);
+        Object.entries(failedToolUsage)
+            .sort(([, a], [, b]) => b - a)
+            .forEach(([name, count]) => {
+                console.log(`  - ${name}: ${count} error(s)`);
             });
     }
     console.log("=".repeat(60));

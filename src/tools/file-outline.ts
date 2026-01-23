@@ -71,6 +71,7 @@ export const fileOutlineTool = tool(
 
             return formatOutline(path, symbols);
         } catch (error) {
+            console.error(`❌ Error in get_file_outline:`, error);
             return `Error getting outline for ${path}: ${error instanceof Error ? error.message : "Unknown error"}`;
         }
     },

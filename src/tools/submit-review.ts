@@ -36,6 +36,7 @@ ${summary}
 
             return `Review submitted successfully with verdict: ${verdict}`;
         } catch (error) {
+            console.error(`❌ Error in submit_review:`, error);
             const message = error instanceof Error ? error.message : "Unknown error";
             return `Error submitting review: ${message}`;
         }
