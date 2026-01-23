@@ -5,6 +5,9 @@ import { searchWebTool, isWebSearchAvailable } from "./search-web.js";
 import { leaveCommentTool } from "./leave-comment.js";
 import { submitReviewTool } from "./submit-review.js";
 import { grepTool } from "./grep.js";
+import { fileOutlineTool } from "./file-outline.js";
+import { viewCodeItemTool } from "./view-code-item.js";
+import { findReferencesTool } from "./find-references.js";
 
 /**
  * Get built-in tools available to the agent
@@ -17,6 +20,9 @@ function getBuiltInTools(): StructuredToolInterface[] {
         leaveCommentTool,
         submitReviewTool,
         grepTool,
+        fileOutlineTool,
+        viewCodeItemTool,
+        findReferencesTool,
     ];
 
     // Only include web search tool if GEMINI_API_KEY is available

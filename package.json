@@ -5,7 +5,7 @@
     "type": "module",
     "main": "action/index.js",
     "scripts": {
-        "build": "tsc && ncc build dist/index.js -o action",
+        "build": "rm -rf action && tsc && ncc build dist/index.js -o action && mkdir -p action/wasm && cp src/helpers/wasm/* action/wasm/",
         "dev": "tsx src/index.ts",
         "typecheck": "tsc --noEmit",
         "release": "yarn build && git add action/ && yarn version && git push && git push --tags"
@@ -22,11 +22,18 @@
         "glob": "^13.0.0",
         "safe-regex2": "^5.0.0",
         "simple-git": "^3.30.0",
+        "web-tree-sitter": "^0.26.3",
         "zod": "^3.23.0"
     },
     "devDependencies": {
         "@types/node": "^20.0.0",
         "@vercel/ncc": "^0.38.0",
+        "tree-sitter-c": "^0.24.1",
+        "tree-sitter-cli": "^0.26.3",
+        "tree-sitter-cpp": "^0.23.4",
+        "tree-sitter-javascript": "^0.25.0",
+        "tree-sitter-python": "^0.25.0",
+        "tree-sitter-typescript": "^0.23.2",
         "tsx": "^4.0.0",
         "typescript": "^5.0.0"
     },

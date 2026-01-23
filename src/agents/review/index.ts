@@ -120,7 +120,7 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
         // This ensures the LLM sees the budget notice before making more tool calls
         if (budgetExceeded && chunk.tools?.messages) {
             console.log("\n📝 Injecting wrap-up message after tool results...");
-            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings from what you've already reviewed and start writing your review comments and summary."));
+            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings from what you've already reviewed and start writing your review code comments and summary."));
             // Abort the stream to stop background processing
             console.log("🛑 Aborting original stream...");
             abortController.abort();
@@ -187,14 +187,14 @@ ${truncateDiff(context.diff)}
     if (context.existingComments.length > 0) {
         message += `
 ## Existing Review Comments
-${context.existingComments.map((c) => `- **${c.author}** on \`${c.path}\`: ${c.body}`).join("\n")}
+${context.existingComments.map((c) => `- **${c.author}** on \`${c.path}\`:\n\`\`\`\n${c.body}\`\`\``).join("\n")}
 `;
     }
 
     if (context.conversation.length > 0) {
         message += `
 ## PR Conversation
-${context.conversation.map((c) => `- **${c.author}**: ${c.body}`).join("\n")}
+${context.conversation.map((c) => `- **${c.author}**:\n\`\`\`\n${c.body}\`\`\``).join("\n")}
 `;
     }
 
@@ -229,12 +229,50 @@ Begin your review now.
 function truncateDiff(diff: string): string {
     const MAX_LINES_PER_FILE = 500;
     const MAX_CHARS_PER_FILE = 10000;
+    const BINARY_EXTENSIONS = ['.wasm', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.pdf', '.zip', '.tar', '.gz'];
 
     // Split by "diff --git" at start of line, keeping the delimiter with each part
     const parts = diff.split(/(?=^diff --git )/m);
 
     return parts.map(part => {
         if (!part.trim()) return part;
+
+        // Check for binary files or excluded extensions
+        // Format: diff --git a/path/to/file.ext b/path/to/file.ext
+        const headerLine = part.split('\n')[0];
+        const match = headerLine.match(/diff --git a\/(.*?) b\//);
+
+        if (match) {
+            const fileName = match[1];
+
+            // Check for binaries
+            const isBinary = BINARY_EXTENSIONS.some(ext => fileName.toLowerCase().endsWith(ext));
+            if (isBinary) {
+                return `${headerLine}\n... (Binary file excluded from diff context)\n`;
+            }
+
+            // Check for artifacts (minified files, maps, locks)
+            const ARTIFACT_EXTENSIONS = ['.min.js', '.map', '.lock', '-lock.json', '.svg'];
+            if (ARTIFACT_EXTENSIONS.some(ext => fileName.toLowerCase().endsWith(ext))) {
+                return `${headerLine}\n... (Artifact file excluded from diff context)\n`;
+            }
+
+            // Check for build directories
+            if (/\/dist\/|\/build\/|\/out\/|\/node_modules\//.test(fileName)) {
+                return `${headerLine}\n... (Build artifact excluded from diff context)\n`;
+            }
+
+            // Special handling for large JS/TS files that might be bundles
+            // If it's a JS file and huge, it's likely a bundle we missed
+            if (/\.(js|mjs|cjs|ts|tsx)$/.test(fileName) && part.length > MAX_CHARS_PER_FILE) {
+                return `${headerLine}\n... (Large file excluded from diff context - likely generated or too big to review inline)\n`;
+            }
+        }
+
+        // Also check if the diff itself says "Binary files ... differ"
+        if (part.includes("Binary files") && part.includes("differ")) {
+            return part.split('\n').filter(l => l.startsWith('diff --git') || l.includes('Binary files')).join('\n') + '\n';
+        }
 
         if (part.length > MAX_CHARS_PER_FILE) {
             return part.slice(0, MAX_CHARS_PER_FILE) + "\n... (File diff truncated: exceeds 10k chars)\n";
