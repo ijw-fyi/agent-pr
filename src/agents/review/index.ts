@@ -120,7 +120,7 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
         // This ensures the LLM sees the budget notice before making more tool calls
         if (budgetExceeded && chunk.tools?.messages) {
             console.log("\n📝 Injecting wrap-up message after tool results...");
-            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings from what you've already reviewed and start writing your review comments and summary."));
+            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings from what you've already reviewed and start writing your review code comments and summary."));
             // Abort the stream to stop background processing
             console.log("🛑 Aborting original stream...");
             abortController.abort();
@@ -187,14 +187,14 @@ ${truncateDiff(context.diff)}
     if (context.existingComments.length > 0) {
         message += `
 ## Existing Review Comments
-${context.existingComments.map((c) => `- **${c.author}** on \`${c.path}\`: ${c.body}`).join("\n")}
+${context.existingComments.map((c) => `- **${c.author}** on \`${c.path}\`:\n\`\`\`\n${c.body}\`\`\``).join("\n")}
 `;
     }
 
     if (context.conversation.length > 0) {
         message += `
 ## PR Conversation
-${context.conversation.map((c) => `- **${c.author}**: ${c.body}`).join("\n")}
+${context.conversation.map((c) => `- **${c.author}**:\n\`\`\`\n${c.body}\`\`\``).join("\n")}
 `;
     }
 

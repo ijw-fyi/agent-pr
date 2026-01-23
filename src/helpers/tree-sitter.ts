@@ -102,7 +102,7 @@ async function loadLanguage(langName: string): Promise<TreeSitter.Language> {
         join(__dirname, "wasm", wasmFile),           // Dev: src/helpers/wasm/
         join(__dirname, "..", "helpers", "wasm", wasmFile), // Bundled: action/helpers/wasm/
         join(process.cwd(), "src", "helpers", "wasm", wasmFile), // CWD fallback
-        join(process.cwd(), "action", wasmFile),     // Action bundle fallback
+        join(process.cwd(), "action", "wasm", wasmFile),     // Action bundle fallback
     ];
 
     let language: TreeSitter.Language | null = null;
