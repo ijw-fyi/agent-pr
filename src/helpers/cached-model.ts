@@ -69,8 +69,9 @@ function hashMessage(msg: { content?: string | any[] | null; tool_calls?: any[] 
     // For tool-calling messages, content is often null - use tool_calls instead
     if (msg.tool_calls && msg.tool_calls.length > 0) {
         // Hash based on tool call IDs and function names
+        // Handle both OpenRouter format (function.name) and LangChain format (name)
         const toolKey = msg.tool_calls.map((tc: any) =>
-            `${tc.id || ''}_${tc.function?.name || ''}`
+            `${tc.id || ''}_${tc.function?.name || tc.name || ''}`
         ).join('|');
         return `tools:${toolKey}`;
     }
@@ -198,6 +199,9 @@ function patchOpenAIClient(client: any) {
             // Inject stored reasoning into assistant messages (critical for multi-turn thinking)
             if (msg.role === "assistant") {
                 const msgHash = hashMessage(msg);
+                if (process.env.DEBUG_REASONING) {
+                    console.log(`   🔍 Looking up hash: ${msgHash.substring(0, 60)}...`);
+                }
                 const storedReasoning = reasoningStore.get(msgHash);
                 if (storedReasoning) {
                     result = {
@@ -206,6 +210,8 @@ function patchOpenAIClient(client: any) {
                         ...(storedReasoning.reasoning_details && { reasoning_details: storedReasoning.reasoning_details })
                     };
                     console.log(`   📝 Restored reasoning for assistant message (${storedReasoning.reasoning?.length || 0} chars)`);
+                } else if (process.env.DEBUG_REASONING) {
+                    console.log(`   ⚠️ No stored reasoning found for this hash`);
                 }
             }
 
