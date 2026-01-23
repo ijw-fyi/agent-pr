@@ -62,12 +62,24 @@ let callCount = 0;
 const reasoningStore = new Map<string, { reasoning?: string; reasoning_details?: any[] }>();
 
 /**
- * Simple hash function for message content to use as a key
+ * Hash function for message content/tool_calls to use as a key for reasoning storage
+ * Handles both text responses (content) and tool-calling responses (tool_calls with null content)
  */
-function hashContent(content: string | any[]): string {
+function hashMessage(msg: { content?: string | any[] | null; tool_calls?: any[] }): string {
+    // For tool-calling messages, content is often null - use tool_calls instead
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+        // Hash based on tool call IDs and function names
+        const toolKey = msg.tool_calls.map((tc: any) =>
+            `${tc.id || ''}_${tc.function?.name || ''}`
+        ).join('|');
+        return `tools:${toolKey}`;
+    }
+
+    // For regular messages, hash the content
+    const content = msg.content;
+    if (!content) return 'empty';
     const str = typeof content === 'string' ? content : JSON.stringify(content);
-    // Simple hash - just use first 100 chars + length for now
-    return `${str.substring(0, 100)}_${str.length}`;
+    return `content:${str.substring(0, 100)}_${str.length}`;
 }
 
 /**
@@ -184,9 +196,9 @@ function patchOpenAIClient(client: any) {
             let result = msg;
 
             // Inject stored reasoning into assistant messages (critical for multi-turn thinking)
-            if (msg.role === "assistant" && msg.content) {
-                const contentHash = hashContent(msg.content);
-                const storedReasoning = reasoningStore.get(contentHash);
+            if (msg.role === "assistant") {
+                const msgHash = hashMessage(msg);
+                const storedReasoning = reasoningStore.get(msgHash);
                 if (storedReasoning) {
                     result = {
                         ...msg,
@@ -241,8 +253,28 @@ function patchOpenAIClient(client: any) {
             },
         };
 
+        // Debug: log full request if DEBUG_REASONING is set
+        if (process.env.DEBUG_REASONING) {
+            console.log("📤 Request payload (messages with reasoning):");
+            for (const msg of modifiedMessages) {
+                if (msg.role === "assistant") {
+                    console.log(`   [${msg.role}] content: ${String(msg.content).substring(0, 100)}...`);
+                    console.log(`      reasoning: ${msg.reasoning ? `✅ (${msg.reasoning.length} chars)` : '❌ none'}`);
+                    console.log(`      reasoning_details: ${msg.reasoning_details ? `✅ (${msg.reasoning_details.length} items)` : '❌ none'}`);
+                }
+            }
+        }
+
         try {
             const response = await originalCreate(modifiedParams, options);
+
+            // Debug: log raw response reasoning fields
+            if (process.env.DEBUG_REASONING) {
+                const choice = response?.choices?.[0]?.message;
+                console.log("📥 Response reasoning fields:");
+                console.log(`   reasoning: ${choice?.reasoning ? `✅ (${choice.reasoning.length} chars)` : '❌ missing'}`);
+                console.log(`   reasoning_details: ${choice?.reasoning_details ? `✅ (${JSON.stringify(choice.reasoning_details).substring(0, 100)}...)` : '❌ missing'}`);
+            }
 
             // Log cache stats and cost from the raw response
             const usage = response?.usage as any;
@@ -295,13 +327,14 @@ function patchOpenAIClient(client: any) {
             }
 
             // Store reasoning for this assistant message (for multi-turn preservation)
-            if (choice?.content && (choice?.reasoning || choice?.reasoning_details)) {
-                const contentHash = hashContent(choice.content);
-                reasoningStore.set(contentHash, {
+            // Store for both content-based and tool-call-based messages
+            if (choice?.reasoning || choice?.reasoning_details) {
+                const msgHash = hashMessage(choice);
+                reasoningStore.set(msgHash, {
                     reasoning: choice.reasoning,
                     reasoning_details: choice.reasoning_details
                 });
-                console.log(`   💾 Stored reasoning for future turns (hash: ${contentHash.substring(0, 30)}...)`);
+                console.log(`   💾 Stored reasoning for future turns (hash: ${msgHash.substring(0, 40)}...)`);
             }
 
             console.log("::endgroup::");
