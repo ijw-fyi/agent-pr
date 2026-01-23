@@ -53,6 +53,7 @@ export function createCachedChatOpenAI(): ChatOpenAI {
 let runningCostTotal = 0;
 let runningInputTokens = 0;
 let runningOutputTokens = 0;
+let callCount = 0;
 
 /**
  * Get the current running cost total
@@ -82,6 +83,7 @@ export function resetRunningCost(): void {
     runningCostTotal = 0;
     runningInputTokens = 0;
     runningOutputTokens = 0;
+    callCount = 0;
 }
 
 /**
@@ -117,6 +119,8 @@ function patchOpenAIClient(client: any) {
             throw new Error("Streaming is not supported");
         }
 
+        callCount++;
+        console.log(`::group::[Call ${callCount} - Stats] OpenRouter API Request`);
         console.log("🔄 Sending request with prompt caching");
 
         // Debug: show message roles
@@ -240,6 +244,7 @@ function patchOpenAIClient(client: any) {
                 console.log(`🧠 Thinking: ${choice.reasoning.substring(0, 1000)}... (${choice.reasoning.length} chars)`);
             }
 
+            console.log("::endgroup::");
             return response;
         } catch (error: any) {
             console.error("❌ OpenRouter API Error:");
@@ -251,6 +256,7 @@ function patchOpenAIClient(client: any) {
             } else {
                 console.error("Error:", JSON.stringify(error, null, 2));
             }
+            console.log("::endgroup::");
             throw error;
         }
     };
