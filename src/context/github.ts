@@ -94,6 +94,62 @@ async function getPRDiff(
 }
 
 /**
+ * Get resolved thread info via GraphQL
+ */
+async function getResolvedThreads(
+    owner: string,
+    repo: string,
+    prNumber: number
+): Promise<Set<number>> {
+    const query = `
+        query($owner: String!, $repo: String!, $prNumber: Int!) {
+            repository(owner: $owner, name: $repo) {
+                pullRequest(number: $prNumber) {
+                    reviewThreads(first: 100) {
+                        nodes {
+                            isResolved
+                            comments(first: 100) {
+                                nodes {
+                                    databaseId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    `;
+
+    try {
+        const result: {
+            repository: {
+                pullRequest: {
+                    reviewThreads: {
+                        nodes: Array<{
+                            isResolved: boolean;
+                            comments: { nodes: Array<{ databaseId: number }> };
+                        }>;
+                    };
+                };
+            };
+        } = await octokit.graphql(query, { owner, repo, prNumber });
+
+        const resolvedIds = new Set<number>();
+        for (const thread of result.repository.pullRequest.reviewThreads.nodes) {
+            if (thread.isResolved) {
+                for (const comment of thread.comments.nodes) {
+                    resolvedIds.add(comment.databaseId);
+                }
+            }
+        }
+        return resolvedIds;
+    } catch (error) {
+        console.warn("Failed to fetch resolved threads via GraphQL:", error);
+        return new Set();
+    }
+}
+
+/**
  * Get existing review comments on the PR
  */
 async function getReviewComments(
@@ -101,11 +157,14 @@ async function getReviewComments(
     repo: string,
     prNumber: number
 ): Promise<ReviewComment[]> {
-    const { data } = await octokit.rest.pulls.listReviewComments({
-        owner,
-        repo,
-        pull_number: prNumber,
-    });
+    const [{ data }, resolvedThreadIds] = await Promise.all([
+        octokit.rest.pulls.listReviewComments({
+            owner,
+            repo,
+            pull_number: prNumber,
+        }),
+        getResolvedThreads(owner, repo, prNumber),
+    ]);
 
     return data.map((comment) => ({
         id: comment.id,
@@ -114,6 +173,7 @@ async function getReviewComments(
         path: comment.path,
         line: comment.line || null,
         createdAt: comment.created_at,
+        isResolved: resolvedThreadIds.has(comment.id),
     }));
 }
 

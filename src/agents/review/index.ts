@@ -237,7 +237,7 @@ ${truncateDiff(context.diff)}
     if (context.existingComments.length > 0) {
         message += `
 ## Existing Review Comments
-${context.existingComments.map((c) => `- **${c.author}** on \`${c.path}\`:\n\`\`\`\n${c.body}\n\`\`\``).join("\n")}
+${context.existingComments.map((c) => `- ${c.isResolved ? "✅ " : ""}**${c.author}** on \`${c.path}\`:\n\`\`\`\n${c.body}\n\`\`\``).join("\n")}
 `;
     }
 

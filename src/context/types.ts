@@ -29,6 +29,7 @@ export interface ReviewComment {
     path: string;
     line: number | null;
     createdAt: string;
+    isResolved: boolean;
 }
 
 /**
