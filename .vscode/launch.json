@@ -5,9 +5,10 @@
             "name": "Review PR",
             "type": "node",
             "request": "launch",
-            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            // "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+            // "args": ["src/index.ts"],
             "args": [
-                "src/index.ts"
+                "action/index.js"
             ],
             "cwd": "${workspaceFolder}",
             "envFile": "${workspaceFolder}/.env",
