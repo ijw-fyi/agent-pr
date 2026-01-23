@@ -1,10 +1,7 @@
-import { createRequire } from "module";
+import * as TreeSitter from "web-tree-sitter";
+import { existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import type * as TreeSitterType from "web-tree-sitter";
-
-const require = createRequire(import.meta.url);
-const TreeSitter = require("web-tree-sitter") as typeof TreeSitterType;
 
 // Get the directory of this module
 const __filename = fileURLToPath(import.meta.url);
@@ -42,10 +39,10 @@ const EXTENSION_LANGUAGE_MAP: Record<string, string> = {
 
 // Singleton parser instance
 let parserInitialized = false;
-const languageCache = new Map<TreeSitterType.Language, TreeSitterType.Language>();
+const languageCache = new Map<TreeSitter.Language, TreeSitter.Language>();
 
 // Type alias for syntax nodes
-type SyntaxNode = ReturnType<TreeSitterType.Tree["rootNode"]["child"]> & { type: string; text: string; children: SyntaxNode[]; startPosition: { row: number; column: number }; endPosition: { row: number; column: number }; startIndex: number; childForFieldName: (name: string) => SyntaxNode | null };
+type SyntaxNode = ReturnType<TreeSitter.Tree["rootNode"]["child"]> & { type: string; text: string; children: SyntaxNode[]; startPosition: { row: number; column: number }; endPosition: { row: number; column: number }; startIndex: number; childForFieldName: (name: string) => SyntaxNode | null };
 
 /**
  * Symbol extracted from source code
@@ -63,7 +60,21 @@ export interface CodeSymbol {
  */
 export async function initParser(): Promise<void> {
     if (parserInitialized) return;
-    await TreeSitter.Parser.init();
+
+    // Provide locateFile to help find web-tree-sitter.wasm in bundled environments
+    await TreeSitter.Parser.init({
+        locateFile(scriptName: string) {
+            // Check bundled location first (action/web-tree-sitter/)
+            const bundledPath = join(__dirname, "..", "web-tree-sitter", scriptName);
+            if (existsSync(bundledPath)) return bundledPath;
+
+            // Development: node_modules
+            const devPath = join(process.cwd(), "node_modules", "web-tree-sitter", scriptName);
+            if (existsSync(devPath)) return devPath;
+
+            return scriptName;
+        }
+    });
     parserInitialized = true;
 }
 
@@ -91,7 +102,7 @@ export function getSupportedExtensions(): string[] {
 /**
  * Load a language grammar
  */
-async function loadLanguage(langName: string): Promise<TreeSitterType.Language> {
+async function loadLanguage(langName: string): Promise<TreeSitter.Language> {
     // Check cache first (using langName as key, storing in a separate map)
     const cached = langNameCache.get(langName);
     if (cached) return cached;
@@ -109,7 +120,7 @@ async function loadLanguage(langName: string): Promise<TreeSitterType.Language> 
         join(process.cwd(), "action", "wasm", wasmFile),     // Action bundle fallback
     ];
 
-    let language: TreeSitterType.Language | null = null;
+    let language: TreeSitter.Language | null = null;
     for (const wasmPath of possiblePaths) {
         try {
             language = await TreeSitter.Language.load(wasmPath);
@@ -128,7 +139,7 @@ async function loadLanguage(langName: string): Promise<TreeSitterType.Language> 
 }
 
 // Cache by language name string
-const langNameCache = new Map<string, TreeSitterType.Language>();
+const langNameCache = new Map<string, TreeSitter.Language>();
 
 /**
  * Parse source code and extract symbols (functions, classes, methods, etc.)
