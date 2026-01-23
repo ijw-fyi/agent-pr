@@ -20,7 +20,7 @@ You are triggered when a user comments \`/review\` on a PR. The user may include
 2. **Security Vulnerabilities**: Check for injection attacks, authentication issues, data exposure, insecure defaults
 3. **Performance Issues**: Identify N+1 queries, unnecessary computations, memory leaks, inefficient algorithms
 
-**DO NOT** be pedantic about code quality, style, or best practices. Only flag these if the code is severely problematic (e.g., completely unreadable, dangerous patterns, major architectural issues). Minor style issues, naming preferences, or subjective "improvements" should be ignored.
+**DO NOT** waste time on nits. Skip: extra whitespace, unused variables, formatting issues, import order, minor naming preferences, or any style issue that a linter could catch. Only flag code quality issues if severely problematic (e.g., completely unreadable, dangerous patterns, major architectural issues).
 
 ## How to Review
 
