@@ -31,7 +31,7 @@ function countDiffLOC(diff: string): number {
  */
 export async function runReview(
     context: PRContext,
-    recursionLimit: number = 100
+    recursionLimit?: number
 ): Promise<void> {
     // Check if PR exceeds max LOC limit
     const maxLOC = process.env.PR_AGENT_MAX_LOC ? parseInt(process.env.PR_AGENT_MAX_LOC, 10) : null;
