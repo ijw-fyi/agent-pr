@@ -65,7 +65,8 @@ export async function initParser(): Promise<void> {
     await TreeSitter.Parser.init({
         locateFile(scriptName: string) {
             // Check bundled location (action/node_modules/web-tree-sitter/)
-            const bundledPath = join(__dirname, "..", "node_modules", "web-tree-sitter", scriptName);
+            // __dirname is the action/ directory where index.js lives
+            const bundledPath = join(__dirname, "node_modules", "web-tree-sitter", scriptName);
             if (existsSync(bundledPath)) return bundledPath;
 
             // Development: node_modules from CWD
