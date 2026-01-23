@@ -108,7 +108,7 @@ async function getResolvedThreads(
                     reviewThreads(first: 100) {
                         nodes {
                             isResolved
-                            comments(first: 1) {
+                            comments(first: 100) {
                                 nodes {
                                     databaseId
                                 }
@@ -136,8 +136,10 @@ async function getResolvedThreads(
 
         const resolvedIds = new Set<number>();
         for (const thread of result.repository.pullRequest.reviewThreads.nodes) {
-            if (thread.isResolved && thread.comments.nodes.length > 0) {
-                resolvedIds.add(thread.comments.nodes[0].databaseId);
+            if (thread.isResolved) {
+                for (const comment of thread.comments.nodes) {
+                    resolvedIds.add(comment.databaseId);
+                }
             }
         }
         return resolvedIds;
