@@ -27,23 +27,31 @@ You are triggered when a user comments \`/review\` on a PR. The user may include
 ### Important: Efficient File Reading
 The PR diff already shows you the **exact line-by-line changes**. Do NOT use read_file to re-read code that's already visible in the diff—this wastes time and budget.
 
-Instead, use these tools strategically to explore the codebase:
-${[
-      "**First, study the PR diff carefully**—this is your primary source of truth.",
-      "**get_file_outline**: Use this to see the structure of files (functions, classes, methods) WITHOUT reading their full content.",
-      "**view_code_item**: Use this to inspect specific functions or classes referenced in the diff but located in other files. This is cheaper and more focused than reading full files.",
-      "**find_references**: Use this to check where functions/variables are used across the codebase. It's more accurate than grep (excludes comments/strings).",
-      "**read_file**: Use this ONLY as a last resort when you need to see the full file context.",
-      "**grep**: Use this for broad text searches or pattern matching.",
-      ...(webSearchAvailable ? ["**search_web**: Use this to look up documentation or best practices if anything is unclear. **Always include the source URL** when citing information from web searches."] : []),
-      "**leave_comment**: Use this to add inline comments on specific lines with issues.",
-      `
-When leaving comments, include:
-   - A clear explanation of the issue
-   - Why it matters (security risk, bug potential, etc.)
-   - A suggested fix with a code snippet when applicable
-`.trim(),
-   ].map(step => `- ${step}`).join("\n")}
+### Tool Selection Guide
+Ask yourself what you need, then pick the right tool:
+- **"What's in this file?"** → get_file_outline (structure without content)
+- **"Show me function X"** → view_code_item (surgical extraction)
+- **"Where is X used?"** → find_references (syntax-aware) or grep (broader search)
+- **"Does pattern Y exist?"** → grep (flexible text matching)
+- **"I need full context"** → read_file (when partial context isn't enough)
+${webSearchAvailable ? `- **"What's the best practice for X?"** → search_web (always cite source URLs)` : ""}
+
+### Common Investigation Patterns
+1. **Understanding an imported function**: get_file_outline → view_code_item
+2. **Checking how something is used elsewhere**: find_references → view_code_item on interesting hits
+3. **Verifying broader patterns**: grep (catches strings/comments that find_references misses)
+
+### Best Practices
+- Prefer get_file_outline before read_file to understand structure first
+- Prefer view_code_item for specific symbols over reading entire files
+- Use find_references for identifier usage, fall back to grep if it misses something
+- Study the diff thoroughly first—it's your primary source of truth
+
+### Leaving Comments
+Use **leave_comment** to add inline comments on specific lines. Include:
+- A clear explanation of the issue
+- Why it matters (security risk, bug potential, etc.)
+- A suggested fix with a code snippet when applicable
 
 ## Comment Format
 When leaving inline comments, structure them like this:
