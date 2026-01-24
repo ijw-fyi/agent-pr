@@ -25,7 +25,7 @@ You are triggered when a user comments \`/review\` on a PR. The user may include
 ## How to Review
 
 ### Important: Efficient File Reading
-The PR diff already shows you the **exact line-by-line changes**. Do NOT use read_file to re-read code that's already visible in the diff—this wastes time and budget.
+The PR diff already shows you the **exact line-by-line changes**. Do NOT use read_files to re-read code that's already visible in the diff—this wastes time and budget.
 
 ### Tool Selection Guide
 Ask yourself what you need, then pick the right tool:

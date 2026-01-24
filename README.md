@@ -217,7 +217,7 @@ Preferences are stored per-repository and persist across PRs.
 
 | Tool | Description |
 |------|-------------|
-| `read_file` | Read file contents with optional line range |
+| `read_files` | Read one or more file contents in a single call |
 | `grep` | Search codebase for patterns (supports regex) |
 | `leave_comment` | Leave inline review comment on PR |
 | `submit_review` | Submit final review summary |
@@ -238,14 +238,14 @@ When triggered, the agent will:
 Starting PR Review Agent
 ============================================================
 Model: anthropic/claude-4.5-sonnet
-Tools available: read_file, leave_comment, submit_review, deepwiki_ask
+Tools available: read_files, leave_comment, submit_review, deepwiki_ask
 ============================================================
 
 Step 1
 ──────────────────────────────────────────────────────────────
 🔧 Tool Calls:
-  → read_file
-    Args: {"path": "src/auth.ts", "startLine": 45, "endLine": 60}
+  → read_files
+    Args: {"files": [{"path": "src/auth.ts", "startLine": 45, "endLine": 60}]}
 
 Step 2
 ──────────────────────────────────────────────────────────────

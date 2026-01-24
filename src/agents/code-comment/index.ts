@@ -37,7 +37,7 @@ function getCodeCommentTools(): StructuredToolInterface[] {
     return [
         storePreferenceTool,
         replyToCommentTool,
-        ...reviewTools,  // Includes read_file, list_directory, grep, search_web, and MCP tools
+        ...reviewTools,  // Includes read_files, list_directory, grep, search_web, and MCP tools
     ];
 }
 
