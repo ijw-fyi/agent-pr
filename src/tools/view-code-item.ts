@@ -22,7 +22,7 @@ export const viewCodeItemTool = tool(
         const ext = extname(path);
         if (!isExtensionSupported(ext)) {
             const supported = getSupportedExtensions().join(", ");
-            return `Extension "${ext}" not supported. Supported: ${supported}. Use read_file instead.`;
+            return `Extension "${ext}" not supported. Supported: ${supported}. Use read_files instead.`;
         }
 
         try {
@@ -50,7 +50,7 @@ export const viewCodeItemTool = tool(
     },
     {
         name: "view_code_item",
-        description: `View a specific function, class, or method by name. More precise than read_file - extracts just the requested symbol's code. Use get_file_outline first to see available symbols. Supports: ${getSupportedExtensions().join(", ")}`,
+        description: `View a specific function, class, or method by name. More precise than read_files - extracts just the requested symbol's code. Use get_file_outline first to see available symbols. Supports: ${getSupportedExtensions().join(", ")}`,
         schema: z.object({
             path: z
                 .string()

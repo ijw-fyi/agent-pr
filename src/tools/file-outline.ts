@@ -58,7 +58,7 @@ export const fileOutlineTool = tool(
         const ext = extname(path);
         if (!isExtensionSupported(ext)) {
             const supported = getSupportedExtensions().join(", ");
-            return `File extension "${ext}" is not supported for outline extraction. Supported extensions: ${supported}. Use read_file instead.`;
+            return `File extension "${ext}" is not supported for outline extraction. Supported extensions: ${supported}. Use read_files instead.`;
         }
 
         try {
@@ -82,7 +82,7 @@ export const fileOutlineTool = tool(
     },
     {
         name: "get_file_outline",
-        description: `Get the structural outline of a source file - lists all functions, classes, methods, and their line ranges WITHOUT reading the full file content. Use this to understand file structure before deciding which parts to read in detail. Much more efficient than read_file for understanding what's in a file. Supported: ${getSupportedExtensions().join(", ")}`,
+        description: `Get the structural outline of a source file - lists all functions, classes, methods, and their line ranges WITHOUT reading the full file content. Use this to understand file structure before deciding which parts to read in detail. Much more efficient than read_files for understanding what's in a file. Supported: ${getSupportedExtensions().join(", ")}`,
         schema: z.object({
             path: z
                 .string()

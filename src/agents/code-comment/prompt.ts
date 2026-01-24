@@ -31,7 +31,7 @@ Do NOT reply if:
 - You have nothing meaningful to add
 - The user just said "thanks" or "fixed"
 
-### Exploration Tools (get_file_outline, view_code_item, find_references, read_file, list_directory, grep, search_web, MCP tools)
+### Exploration Tools (get_file_outline, view_code_item, find_references, read_files, list_directory, grep, search_web, MCP tools)
 Use these to gather context if you need to better understand:
 - The codebase structure or patterns
 - Related code that might inform your response
