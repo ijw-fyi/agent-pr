@@ -11,30 +11,29 @@ export const readFilesTool = tool(
         const repo = process.env.REPO_NAME!;
         const ref = process.env.HEAD_SHA!;
 
-        const results: string[] = [];
+        const results = await Promise.all(
+            files.map(async ({ path, startLine, endLine }) => {
+                try {
+                    const content = await readFileContent(
+                        owner,
+                        repo,
+                        path,
+                        ref,
+                        startLine ?? undefined,
+                        endLine ?? undefined
+                    );
 
-        for (const file of files) {
-            const { path, startLine, endLine } = file;
-            try {
-                const content = await readFileContent(
-                    owner,
-                    repo,
-                    path,
-                    ref,
-                    startLine ?? undefined,
-                    endLine ?? undefined
-                );
-
-                if (startLine || endLine) {
-                    results.push(`=== File: ${path} (lines ${startLine || 1}-${endLine || "end"}) ===\n${content}`);
-                } else {
-                    results.push(`=== File: ${path} ===\n${content}`);
+                    if (startLine || endLine) {
+                        return `=== File: ${path} (lines ${startLine || 1}-${endLine || "end"}) ===\n${content}`;
+                    } else {
+                        return `=== File: ${path} ===\n${content}`;
+                    }
+                } catch (error) {
+                    console.error(`❌ Error reading ${path}:`, error);
+                    return `=== File: ${path} ===\nError: ${error instanceof Error ? error.message : "Unknown error"}`;
                 }
-            } catch (error) {
-                console.error(`❌ Error reading ${path}:`, error);
-                results.push(`=== File: ${path} ===\nError: ${error instanceof Error ? error.message : "Unknown error"}`);
-            }
-        }
+            })
+        );
 
         return results.join("\n\n");
     },
