@@ -345,3 +345,94 @@ export async function addReactionToReviewComment(
         content: reaction,
     });
 }
+
+/**
+ * Review verdict labels used by the PR agent
+ */
+export const REVIEW_LABELS = {
+    approve: "pr-agent: ✅ approved",
+    request_changes: "pr-agent: ⚠️ changes requested",
+    comment: "pr-agent: 💬 feedback",
+} as const;
+
+/**
+ * Add a label to a PR, creating it if it doesn't exist
+ */
+export async function addLabelToPR(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    label: string
+): Promise<void> {
+    // Ensure the label exists in the repo (create if not)
+    try {
+        await octokit.rest.issues.getLabel({
+            owner,
+            repo,
+            name: label,
+        });
+    } catch {
+        // Label doesn't exist, create it
+        const colors: Record<string, string> = {
+            [REVIEW_LABELS.approve]: "0e8a16",      // green
+            [REVIEW_LABELS.request_changes]: "fbca04", // yellow
+            [REVIEW_LABELS.comment]: "1d76db",      // blue
+        };
+        await octokit.rest.issues.createLabel({
+            owner,
+            repo,
+            name: label,
+            color: colors[label] || "ededed",
+        });
+    }
+
+    await octokit.rest.issues.addLabels({
+        owner,
+        repo,
+        issue_number: prNumber,
+        labels: [label],
+    });
+}
+
+/**
+ * Remove a label from a PR (silently ignores if label not present)
+ */
+export async function removeLabelFromPR(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    label: string
+): Promise<void> {
+    try {
+        await octokit.rest.issues.removeLabel({
+            owner,
+            repo,
+            issue_number: prNumber,
+            name: label,
+        });
+    } catch {
+        // Label wasn't on the PR, ignore
+    }
+}
+
+/**
+ * Set the review verdict label on a PR, removing any previous review labels
+ */
+export async function setReviewLabel(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    verdict: keyof typeof REVIEW_LABELS
+): Promise<void> {
+    // Remove all other review labels first
+    const labelsToRemove = Object.values(REVIEW_LABELS).filter(
+        (label) => label !== REVIEW_LABELS[verdict]
+    );
+
+    await Promise.all(
+        labelsToRemove.map((label) => removeLabelFromPR(owner, repo, prNumber, label))
+    );
+
+    // Add the new label
+    await addLabelToPR(owner, repo, prNumber, REVIEW_LABELS[verdict]);
+}
