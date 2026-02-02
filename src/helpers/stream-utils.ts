@@ -4,7 +4,7 @@
  */
 
 import { AIMessage, ToolMessage } from "@langchain/core/messages";
-import { getRunningCost } from "./cached-model.js";
+import { getRunningCost, recordToolCall } from "./cached-model.js";
 
 /**
  * Truncate text to specified length, adding ellipsis if needed
@@ -70,6 +70,12 @@ export function processChunk(
             if (msg instanceof ToolMessage) {
                 const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
                 const preview = truncate(content, 100);
+                const failed = content.startsWith('Error');
+
+                // Record tool usage
+                if (msg.name) {
+                    recordToolCall(msg.name, failed);
+                }
 
                 console.log(`::group::[Step ${stepNum}] 🔧 tool:${msg.name} | ${formatCost()} | ${preview}`);
                 console.log(content);

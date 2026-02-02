@@ -4,7 +4,7 @@ import { getSystemPrompt } from "./prompt.js";
 import { tools } from "../../tools/index.js";
 import { isWebSearchAvailable } from "../../tools/search-web.js";
 import type { PRContext } from "../../context/types.js";
-import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens } from "../../helpers/cached-model.js";
+import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats } from "../../helpers/cached-model.js";
 import { createPRComment } from "../../context/github.js";
 import { processChunk } from "../../helpers/stream-utils.js";
 import { getVersion } from "../../helpers/version.js";
@@ -165,26 +165,8 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     const cacheWriteTokens = getRunningCacheWriteTokens();
     const cacheHitRate = inputTokens > 0 ? (cacheReadTokens / inputTokens * 100) : 0;
 
-    // Calculate tool usage
-    const toolUsage: Record<string, number> = {};
-    const failedToolUsage: Record<string, number> = {};
-    let totalToolCalls = 0;
-    let totalFailedCalls = 0;
-
-    for (const msg of allMessages) {
-        if (msg instanceof ToolMessage && msg.name) {
-            // Count actual tool executions
-            toolUsage[msg.name] = (toolUsage[msg.name] || 0) + 1;
-            totalToolCalls++;
-
-            // Check for failures
-            const content = typeof msg.content === 'string' ? msg.content : '';
-            if (content.startsWith('Error')) {
-                failedToolUsage[msg.name] = (failedToolUsage[msg.name] || 0) + 1;
-                totalFailedCalls++;
-            }
-        }
-    }
+    // Get tool usage from global tracking
+    const { toolUsage, failedToolUsage, totalCalls: totalToolCalls, totalFailed: totalFailedCalls } = getToolUsageStats();
 
     console.log(`\n${"=".repeat(60)}`);
     console.log(`Review completed. Total steps: ${stepCount}`);

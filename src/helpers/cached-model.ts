@@ -57,6 +57,10 @@ let runningCacheReadTokens = 0;
 let runningCacheWriteTokens = 0;
 let callCount = 0;
 
+// Tool usage tracking
+const toolUsage: Record<string, number> = {};
+const failedToolUsage: Record<string, number> = {};
+
 // Store reasoning blocks by assistant message content (for multi-turn thinking preservation)
 // Key: hash of message content, Value: { reasoning, reasoning_details }
 const reasoningStore = new Map<string, { reasoning?: string; reasoning_details?: any[] }>();
@@ -129,6 +133,28 @@ export function resetRunningCost(): void {
     runningCacheWriteTokens = 0;
     callCount = 0;
     reasoningStore.clear();
+    // Reset tool usage
+    for (const key of Object.keys(toolUsage)) delete toolUsage[key];
+    for (const key of Object.keys(failedToolUsage)) delete failedToolUsage[key];
+}
+
+/**
+ * Record a tool call
+ */
+export function recordToolCall(toolName: string, failed: boolean = false): void {
+    toolUsage[toolName] = (toolUsage[toolName] || 0) + 1;
+    if (failed) {
+        failedToolUsage[toolName] = (failedToolUsage[toolName] || 0) + 1;
+    }
+}
+
+/**
+ * Get tool usage stats
+ */
+export function getToolUsageStats(): { toolUsage: Record<string, number>; failedToolUsage: Record<string, number>; totalCalls: number; totalFailed: number } {
+    const totalCalls = Object.values(toolUsage).reduce((a, b) => a + b, 0);
+    const totalFailed = Object.values(failedToolUsage).reduce((a, b) => a + b, 0);
+    return { toolUsage: { ...toolUsage }, failedToolUsage: { ...failedToolUsage }, totalCalls, totalFailed };
 }
 
 /**
