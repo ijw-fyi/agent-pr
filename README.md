@@ -260,6 +260,36 @@ Step 2
 - OpenRouter API key
 - Repository with pull requests enabled
 
+## Roadmap
+
+Planned tools to reduce file reads and improve review efficiency:
+
+### High Priority
+
+| Tool | Description |
+|------|-------------|
+| `get_diff_context` | Expand diff line ranges to show full surrounding context (e.g., the complete function containing a change) |
+| `get_changed_symbols` | Extract just the functions/classes modified in the PR with their full definitions |
+| `get_imports` | Return only import statements for a file to understand dependencies quickly |
+| `get_call_graph` | Show what functions call a given function and what it calls |
+| `get_type_definition` | Retrieve TypeScript interface/type definitions by name |
+
+### Medium Priority
+
+| Tool | Description |
+|------|-------------|
+| `git_blame_lines` | Get blame info for specific lines to understand code history |
+| `find_tests` | Given a source file, find related test files automatically |
+| `batch_read_lines` | Read specific line ranges from multiple files in one call |
+| `get_related_files` | Find files that import or are imported by a given file |
+
+### Nice to Have
+
+| Tool | Description |
+|------|-------------|
+| `semantic_search` | Search code by meaning rather than literal patterns |
+| `get_docstring` | Extract just the documentation/JSDoc for a symbol |
+
 ## License
 
 MIT
