@@ -42,6 +42,13 @@ export const listDirectoryTool = tool(
             const normalizedPath = dirPath.replace(/^\/+|\/+$/g, '') || '';
             const fullPath = path.join(workspaceRoot, normalizedPath);
 
+            // Security check: Ensure path is within workspace root
+            const resolvedPath = path.resolve(fullPath);
+            const resolvedRoot = path.resolve(workspaceRoot);
+            if (!resolvedPath.startsWith(resolvedRoot + path.sep) && resolvedPath !== resolvedRoot) {
+                return `Error: Path '${dirPath}' is outside the repository`;
+            }
+
             // Check if path exists and is a directory
             const stats = await fs.stat(fullPath);
             if (!stats.isDirectory()) {
