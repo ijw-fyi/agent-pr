@@ -212,6 +212,36 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
             });
     }
     console.log("=".repeat(60));
+
+    // Post stats comment to PR
+    const toolsTable = Object.entries(toolUsage)
+        .sort(([, a], [, b]) => b - a)
+        .map(([name, count]) => {
+            const failed = failedToolUsage[name] || 0;
+            const status = failed > 0 ? `${count} (⚠️ ${failed} failed)` : `${count}`;
+            return `| ${name} | ${status} |`;
+        })
+        .join('\n');
+
+    const statsMessage = `---
+<details>
+<summary>📊 Review Stats</summary>
+
+| Metric | Value |
+|--------|-------|
+| 💰 Cost | $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget |
+| 📝 Tokens | ${totalTokens.toLocaleString()} (${inputTokens.toLocaleString()} in, ${outputTokens.toLocaleString()} out) |
+| 💾 Cache Hit Rate | ${cacheHitRate.toFixed(1)}% (${cacheReadTokens.toLocaleString()} read, ${cacheWriteTokens.toLocaleString()} write) |
+
+**🔧 Tool Usage** (${totalToolCalls} calls${totalFailedCalls > 0 ? `, ${totalFailedCalls} failed` : ''})
+
+| Tool | Calls |
+|------|-------|
+${toolsTable || '| (none) | - |'}
+
+</details>`;
+
+    await createPRComment(context.owner, context.repo, context.prNumber, statsMessage);
 }
 
 /**
