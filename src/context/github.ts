@@ -373,7 +373,8 @@ export async function addLabelToPR(
         });
     } catch (error: unknown) {
         // Only create label if it truly doesn't exist (404)
-        if (error && typeof error === "object" && "status" in error && error.status !== 404) {
+        const isNotFoundError = error && typeof error === "object" && "status" in error && error.status === 404;
+        if (!isNotFoundError) {
             throw error;
         }
         // Label doesn't exist, create it
@@ -416,7 +417,8 @@ export async function removeLabelFromPR(
         });
     } catch (error: unknown) {
         // Only ignore if label wasn't on the PR (404)
-        if (error && typeof error === "object" && "status" in error && error.status !== 404) {
+        const isNotFoundError = error && typeof error === "object" && "status" in error && error.status === 404;
+        if (!isNotFoundError) {
             throw error;
         }
     }
