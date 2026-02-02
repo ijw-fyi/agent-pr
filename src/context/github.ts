@@ -371,7 +371,11 @@ export async function addLabelToPR(
             repo,
             name: label,
         });
-    } catch {
+    } catch (error: unknown) {
+        // Only create label if it truly doesn't exist (404)
+        if (error && typeof error === "object" && "status" in error && error.status !== 404) {
+            throw error;
+        }
         // Label doesn't exist, create it
         const colors: Record<string, string> = {
             [REVIEW_LABELS.approve]: "0e8a16",      // green
@@ -410,8 +414,11 @@ export async function removeLabelFromPR(
             issue_number: prNumber,
             name: label,
         });
-    } catch {
-        // Label wasn't on the PR, ignore
+    } catch (error: unknown) {
+        // Only ignore if label wasn't on the PR (404)
+        if (error && typeof error === "object" && "status" in error && error.status !== 404) {
+            throw error;
+        }
     }
 }
 
