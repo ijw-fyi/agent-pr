@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { createPRComment, setReviewLabel } from "../context/github.js";
+import { submitPRReview, setReviewLabel } from "../context/github.js";
 import { getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats } from "../helpers/cached-model.js";
 
 /**
@@ -25,6 +25,13 @@ export const submitReviewTool = tool(
                 request_changes: "Changes requested",
                 comment: "Review complete",
             }[verdict];
+
+            // Map verdict to GitHub review event type
+            const reviewEvent = {
+                approve: "APPROVE",
+                request_changes: "REQUEST_CHANGES",
+                comment: "COMMENT",
+            }[verdict] as "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
 
             // Build stats
             const cost = getRunningCost();
@@ -69,7 +76,9 @@ ${toolsTable || '| (none) | - |'}
 
 </details>`;
 
-            await createPRComment(owner, repo, prNumber, body);
+            // Submit an actual GitHub PR review (approve/request changes/comment)
+            const commitId = process.env.HEAD_SHA;
+            await submitPRReview(owner, repo, prNumber, body, reviewEvent, commitId);
 
             // Add verdict label to the PR
             await setReviewLabel(owner, repo, prNumber, verdict);
