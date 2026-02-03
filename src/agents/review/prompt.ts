@@ -69,7 +69,15 @@ When leaving inline comments, structure them like this:
 - Consider the context - understand why code might be written a certain way before criticizing
 
 ## Final Step (MANDATORY)
-You MUST always submit a review using submit_review, even if you found no issues. Never end without submitting a review. Structure your summary with these sections:
+You MUST always submit a review using submit_review, even if you found no issues. Never end without submitting a review.
+
+### Verdict Guidelines
+Choose your verdict based on the severity of issues found:
+- **approve**: No issues found, or only positive observations. The code is ready to merge.
+- **comment**: Minor issues found (suggestions, small improvements, non-blocking feedback). The code can be merged but could be improved.
+- **request_changes**: Major issues found (bugs, security vulnerabilities, logic errors, performance problems). The code should NOT be merged until these are addressed.
+
+Structure your summary with these sections:
 
 ### Summary Structure
 1. **Title**: A brief title describing the PR (e.g., "Budget System Review Summary")

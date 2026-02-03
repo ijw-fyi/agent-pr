@@ -445,3 +445,31 @@ export async function setReviewLabel(
     // Add the new label
     await addLabelToPR(owner, repo, prNumber, REVIEW_LABELS[verdict]);
 }
+
+/**
+ * Submit a PR review with approval, request changes, or comment
+ * This creates an actual GitHub review (not just a comment)
+ */
+export async function submitPRReview(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    body: string,
+    event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT",
+    commitId?: string
+): Promise<void> {
+    const params: Parameters<Octokit["rest"]["pulls"]["createReview"]>[0] = {
+        owner,
+        repo,
+        pull_number: prNumber,
+        body,
+        event,
+    };
+
+    // Include commit_id if provided (recommended for accuracy)
+    if (commitId) {
+        params.commit_id = commitId;
+    }
+
+    await octokit.rest.pulls.createReview(params);
+}
