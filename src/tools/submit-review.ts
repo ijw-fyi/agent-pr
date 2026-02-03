@@ -103,7 +103,7 @@ ${toolsTable || '| (none) | - |'}
             verdict: z
                 .enum(["approve", "request_changes", "comment"])
                 .describe(
-                    "Your overall verdict: 'approve' if the code is good, 'request_changes' if there are issues that must be fixed, 'comment' for feedback without blocking."
+                    "Your overall verdict: 'approve' if no issues found (ready to merge), 'comment' if minor issues found (non-blocking suggestions), 'request_changes' if major issues found (bugs, security, must be fixed before merge)."
                 ),
         }),
     }
