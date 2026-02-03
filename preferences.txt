@@ -1,2 +1,3 @@
 Don't flag Gemini API's codeExecution tool as a security risk - it executes on Google's servers, not locally
 Module-level state for tracking costs across requests is acceptable since the code runs in GitHub Actions where the process only initializes once per user action
+When PR review submission falls back to a regular comment (e.g., can't approve own PR), keep it seamless without warning notes or special error handling - the fallback should be invisible to users even if labels don't match actual GitHub review state
