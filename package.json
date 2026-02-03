@@ -5,10 +5,12 @@
     "type": "module",
     "main": "action/index.js",
     "scripts": {
-        "build": "rm -rf action && tsc && ncc build dist/index.js -o action -e web-tree-sitter && rm -rf action/web-tree-sitter && mkdir -p action/wasm action/node_modules/web-tree-sitter && cp src/helpers/wasm/* action/wasm/ && cp node_modules/web-tree-sitter/web-tree-sitter.js node_modules/web-tree-sitter/web-tree-sitter.wasm node_modules/web-tree-sitter/package.json action/node_modules/web-tree-sitter/",
+        "sync-wasm": "./scripts/sync-wasm.sh",
+        "build": "yarn sync-wasm && rm -rf action && tsc && ncc build dist/index.js -o action -e web-tree-sitter && rm -rf action/web-tree-sitter && mkdir -p action/wasm action/node_modules/web-tree-sitter && cp src/helpers/wasm/* action/wasm/ && cp node_modules/web-tree-sitter/web-tree-sitter.js node_modules/web-tree-sitter/web-tree-sitter.wasm node_modules/web-tree-sitter/package.json action/node_modules/web-tree-sitter/",
         "dev": "tsx src/index.ts",
         "typecheck": "tsc --noEmit",
-        "release": "yarn build && git add action/ && yarn version && git push && git push --tags"
+        "release": "./scripts/release.sh",
+        "postinstall": "yarn sync-wasm"
     },
     "dependencies": {
         "@actions/core": "^1.10.1",
