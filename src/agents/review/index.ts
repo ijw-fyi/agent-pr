@@ -283,8 +283,15 @@ function truncateDiff(diff: string): string {
                 return `${headerLine}\n... (Binary file excluded from diff context)\n`;
             }
 
-            // Check for artifacts (minified files, maps, locks)
-            const ARTIFACT_EXTENSIONS = ['.min.js', '.map', '.lock', '-lock.json', '.svg'];
+            // Check for lock files explicitly
+            const LOCK_FILES = ['yarn.lock', 'package-lock.json', 'pnpm-lock.yaml', 'uv.lock', 'poetry.lock', 'Cargo.lock', 'Gemfile.lock', 'composer.lock', 'bun.lockb'];
+            const baseName = fileName.split('/').pop() || fileName;
+            if (LOCK_FILES.includes(baseName)) {
+                return `${headerLine}\n... (Lock file excluded from diff context)\n`;
+            }
+
+            // Check for artifacts (minified files, maps, etc.)
+            const ARTIFACT_EXTENSIONS = ['.min.js', '.map', '.svg'];
             if (ARTIFACT_EXTENSIONS.some(ext => fileName.toLowerCase().endsWith(ext))) {
                 return `${headerLine}\n... (Artifact file excluded from diff context)\n`;
             }
