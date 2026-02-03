@@ -9,12 +9,61 @@ import { createPRComment } from "../../context/github.js";
 import { processChunk } from "../../helpers/stream-utils.js";
 import { getVersion } from "../../helpers/version.js";
 
+// Files that should be excluded from diff context and LOC counting
+const LOCK_FILES = ['yarn.lock', 'package-lock.json', 'pnpm-lock.yaml', 'uv.lock', 'poetry.lock', 'Cargo.lock', 'Gemfile.lock', 'composer.lock', 'bun.lockb'];
+const BINARY_EXTENSIONS = ['.wasm', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.pdf', '.zip', '.tar', '.gz'];
+const ARTIFACT_EXTENSIONS = ['.min.js', '.map', '.svg'];
+
+/**
+ * Check if a file should be excluded from review based on its path
+ */
+function shouldExcludeFile(fileName: string): boolean {
+    const baseName = fileName.split('/').pop() || fileName;
+    const lowerFileName = fileName.toLowerCase();
+
+    // Check for lock files
+    if (LOCK_FILES.includes(baseName)) return true;
+
+    // Check for binary files
+    if (BINARY_EXTENSIONS.some(ext => lowerFileName.endsWith(ext))) return true;
+
+    // Check for artifact files
+    if (ARTIFACT_EXTENSIONS.some(ext => lowerFileName.endsWith(ext))) return true;
+
+    // Check for build directories
+    if (/\/dist\/|\/build\/|\/out\/|\/node_modules\//.test(fileName)) return true;
+
+    return false;
+}
+
+/**
+ * Filter out excluded files from a diff string
+ */
+function filterExcludedFiles(diff: string): string {
+    const parts = diff.split(/(?=^diff --git )/m);
+
+    return parts.filter(part => {
+        if (!part.trim()) return true;
+
+        const headerLine = part.split('\n')[0];
+        const match = headerLine.match(/diff --git a\/(.*?) b\//);
+
+        if (match) {
+            return !shouldExcludeFile(match[1]);
+        }
+
+        return true;
+    }).join('');
+}
+
 /**
  * Count the number of lines of code changed in a diff
  * Counts lines starting with + or - (excluding diff headers like +++ and ---)
+ * Excludes lock files, binaries, and other non-reviewable files
  */
 function countDiffLOC(diff: string): number {
-    const lines = diff.split('\n');
+    const filteredDiff = filterExcludedFiles(diff);
+    const lines = filteredDiff.split('\n');
     let loc = 0;
     for (const line of lines) {
         // Count lines that start with + or - but not +++ or ---
@@ -261,7 +310,6 @@ Begin your review now.
 function truncateDiff(diff: string): string {
     const MAX_LINES_PER_FILE = 500;
     const MAX_CHARS_PER_FILE = 40000; // avg 80 characters per line
-    const BINARY_EXTENSIONS = ['.wasm', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.pdf', '.zip', '.tar', '.gz'];
 
     // Split by "diff --git" at start of line, keeping the delimiter with each part
     const parts = diff.split(/(?=^diff --git )/m);
@@ -277,28 +325,9 @@ function truncateDiff(diff: string): string {
         if (match) {
             const fileName = match[1];
 
-            // Check for binaries
-            const isBinary = BINARY_EXTENSIONS.some(ext => fileName.toLowerCase().endsWith(ext));
-            if (isBinary) {
-                return `${headerLine}\n... (Binary file excluded from diff context)\n`;
-            }
-
-            // Check for lock files explicitly
-            const LOCK_FILES = ['yarn.lock', 'package-lock.json', 'pnpm-lock.yaml', 'uv.lock', 'poetry.lock', 'Cargo.lock', 'Gemfile.lock', 'composer.lock', 'bun.lockb'];
-            const baseName = fileName.split('/').pop() || fileName;
-            if (LOCK_FILES.includes(baseName)) {
-                return `${headerLine}\n... (Lock file excluded from diff context)\n`;
-            }
-
-            // Check for artifacts (minified files, maps, etc.)
-            const ARTIFACT_EXTENSIONS = ['.min.js', '.map', '.svg'];
-            if (ARTIFACT_EXTENSIONS.some(ext => fileName.toLowerCase().endsWith(ext))) {
-                return `${headerLine}\n... (Artifact file excluded from diff context)\n`;
-            }
-
-            // Check for build directories
-            if (/\/dist\/|\/build\/|\/out\/|\/node_modules\//.test(fileName)) {
-                return `${headerLine}\n... (Build artifact excluded from diff context)\n`;
+            // Use shared exclusion logic
+            if (shouldExcludeFile(fileName)) {
+                return `${headerLine}\n... (File excluded from diff context)\n`;
             }
 
             // Special handling for large JS/TS files that might be bundles
