@@ -449,6 +449,7 @@ export async function setReviewLabel(
 /**
  * Submit a PR review with approval, request changes, or comment
  * This creates an actual GitHub review (not just a comment)
+ * Falls back to a regular comment if the review fails (e.g., can't approve own PR)
  */
 export async function submitPRReview(
     owner: string,
@@ -471,5 +472,11 @@ export async function submitPRReview(
         params.commit_id = commitId;
     }
 
-    await octokit.rest.pulls.createReview(params);
+    try {
+        await octokit.rest.pulls.createReview(params);
+    } catch (error) {
+        // If review fails (e.g., can't approve own PR), fall back to a regular comment
+        console.warn(`⚠️ Could not submit review as ${event}, falling back to comment:`, error instanceof Error ? error.message : error);
+        await createPRComment(owner, repo, prNumber, body);
+    }
 }
