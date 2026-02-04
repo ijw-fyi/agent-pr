@@ -47,7 +47,7 @@ Begin each response with your updated checklist showing progress:
 \`\`\`
 
 **Rules:**
-- **Call tools in parallel.** All investigation tools (read_files, grep, get_file_outline, view_code_item, find_references) are read-only. If you need to grep for X AND read file Y, do both in the same turn. Only leave_comment and submit_review have side effects.
+- **Call tools in parallel.** All investigation tools (read_files, grep, get_file_outline, find_references) are read-only. If you need to grep for X AND read file Y, do both in the same turn. Only leave_comment and submit_review have side effects.
 - Do NOT re-read code you have already seen. You have it in context.
 - Do NOT switch focus mid-investigation. Finish the current item, then move on.
 - When you need to read multiple files, batch them in a single read_files call.
