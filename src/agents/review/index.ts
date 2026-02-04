@@ -169,7 +169,7 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
         // This ensures the LLM sees the budget notice before making more tool calls
         if (budgetExceeded && chunk.tools?.messages) {
             console.log("\n📝 Injecting wrap-up message after tool results...");
-            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings from what you've already reviewed and start writing your review code comments and summary."));
+            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. Finish investigating your current checklist item, then submit your review immediately with submit_review. Skip remaining checklist items. Mention in your summary that the review was cut short due to budget constraints."));
             // Abort the stream to stop background processing
             console.log("🛑 Aborting original stream...");
             abortController.abort();

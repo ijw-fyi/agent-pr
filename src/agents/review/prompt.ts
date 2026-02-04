@@ -53,7 +53,7 @@ Begin each response with your updated checklist showing progress:
 \`\`\`
 
 **Rules:**
-- **Call tools in parallel.** All investigation tools (read_files, grep, get_file_outline, find_references) are read-only. If you need to grep for X AND read file Y, do both in the same turn. Only leave_comment and submit_review have side effects.
+- **Call tools in parallel.** All investigation tools (read_files, grep, get_file_outline, find_references, list_directory) are read-only. If you need to grep for X AND read file Y, do both in the same turn. Only leave_comment and submit_review have side effects.
 - Do NOT re-read code you have already seen. You have it in context.
 - Do NOT switch focus mid-investigation. Finish the current item, then move on.
 - When you need to read multiple files, batch them in a single read_files call.
@@ -66,6 +66,7 @@ When all checklist items are resolved, submit your review immediately using subm
 - **grep** — find patterns or text across the codebase. Use padding (e.g., 5) to get surrounding context and avoid a follow-up read.
 - **find_references** — like grep but syntax-aware (excludes comments/strings). Use for "where is X used?" questions.
 - **get_file_outline** — lists all symbols in a file with their line ranges (e.g., \`[fn:L47-89] myFunction\`). Use this to discover what's in a file, then read specific ranges with read_files.
+- **list_directory** — explore the project structure. Use when you need to understand how files are organized or find related files (e.g., tests, configs, sibling modules).
 ${webSearchAvailable ? `- **search_web** — look up best practices or documentation. Always cite source URLs.` : ""}
 
 ### Leaving Comments
