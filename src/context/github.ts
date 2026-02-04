@@ -447,6 +447,53 @@ export async function setReviewLabel(
 }
 
 /**
+ * Dismiss previous approval/change request reviews by the bot on a PR
+ */
+async function dismissPreviousReviews(
+    owner: string,
+    repo: string,
+    prNumber: number
+): Promise<void> {
+    try {
+        // Get the authenticated user (the bot)
+        const { data: currentUser } = await octokit.rest.users.getAuthenticated();
+        const botLogin = currentUser.login;
+
+        // List all reviews on the PR
+        const { data: reviews } = await octokit.rest.pulls.listReviews({
+            owner,
+            repo,
+            pull_number: prNumber,
+        });
+
+        // Find reviews by the bot that are APPROVED or CHANGES_REQUESTED
+        const reviewsToDismiss = reviews.filter(
+            (review) =>
+                review.user?.login === botLogin &&
+                (review.state === "APPROVED" || review.state === "CHANGES_REQUESTED")
+        );
+
+        // Dismiss each review
+        for (const review of reviewsToDismiss) {
+            try {
+                await octokit.rest.pulls.dismissReview({
+                    owner,
+                    repo,
+                    pull_number: prNumber,
+                    review_id: review.id,
+                    message: "Superseded by new review",
+                });
+                console.log(`✅ Dismissed previous ${review.state} review #${review.id}`);
+            } catch (dismissError) {
+                console.warn(`⚠️ Could not dismiss review #${review.id}:`, dismissError instanceof Error ? dismissError.message : dismissError);
+            }
+        }
+    } catch (error) {
+        console.warn(`⚠️ Could not check/dismiss previous reviews:`, error instanceof Error ? error.message : error);
+    }
+}
+
+/**
  * Submit a PR review with approval, request changes, or comment
  * This creates an actual GitHub review (not just a comment)
  * Falls back to a regular comment if the review fails (e.g., can't approve own PR)
@@ -459,6 +506,11 @@ export async function submitPRReview(
     event: "APPROVE" | "REQUEST_CHANGES" | "COMMENT",
     commitId?: string
 ): Promise<void> {
+    // If submitting a COMMENT review, dismiss any previous approvals/change requests
+    if (event === "COMMENT") {
+        await dismissPreviousReviews(owner, repo, prNumber);
+    }
+
     const params: Parameters<Octokit["rest"]["pulls"]["createReview"]>[0] = {
         owner,
         repo,
