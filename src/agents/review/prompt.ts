@@ -30,6 +30,12 @@ Read the diff carefully. Identify every "smoking gun" — anything that looks su
 - The file and approximate line
 - What you need to verify (e.g., "is X null-safe?", "does Y handle errors?")
 
+Also consider the **blast radius**: what else could these changes break? Think broadly:
+- **Code dependencies**: modified function signatures, changed return types, altered behavior that other callers depend on
+- **Semantic dependencies**: config that must stay in sync, messages/prompts that assume certain behavior, validation logic that mirrors other logic, constants or enums referenced elsewhere
+
+Add these to your checklist as things to verify.
+
 Output these as a numbered checklist. This is your review plan.
 
 ### Phase 2 — Investigate

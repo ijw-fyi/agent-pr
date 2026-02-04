@@ -291,14 +291,7 @@ ${context.preferences}
 
     message += `
 ## Your Task
-Please review this pull request thoroughly. Use the tools available to:
-1. Use list_directory to explore the project structure if needed
-2. Read any files you need more context on
-3. Use grep to search for patterns across the codebase
-4. Leave inline comments on specific lines where you find issues
-5. Submit your final review with a summary when done
-
-Begin your review now.
+Review this pull request. Begin with Phase 1 (Triage) as described in your instructions.
 `;
 
     return message;
