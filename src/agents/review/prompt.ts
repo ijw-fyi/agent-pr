@@ -56,13 +56,11 @@ Begin each response with your updated checklist showing progress:
 When all checklist items are resolved, submit your review immediately using submit_review. Do NOT go back to investigating.
 
 ### Tool Reference
-Pick the right tool for what you need:
-- **"What's in this file?"** → get_file_outline (structure without content)
-- **"Show me function X"** → view_code_item (surgical extraction)
-- **"Where is X used?"** → find_references (syntax-aware) or grep (broader search)
-- **"Does pattern Y exist?"** → grep (flexible text matching)
-- **"I need full context"** → read_files (batch multiple files in ONE call)
-${webSearchAvailable ? `- **"What's the best practice for X?"** → search_web (always cite source URLs)` : ""}
+- **read_files** — your primary tool. Batch multiple files in ONE call. Use line ranges when you only need a specific section (you can estimate ranges from the diff).
+- **grep** — find patterns or text across the codebase. Use padding (e.g., 5) to get surrounding context and avoid a follow-up read.
+- **find_references** — like grep but syntax-aware (excludes comments/strings). Use for "where is X used?" questions.
+- **get_file_outline** — lists all symbols in a file with their line ranges (e.g., \`[fn:L47-89] myFunction\`). Use this to discover what's in a file, then read specific ranges with read_files.
+${webSearchAvailable ? `- **search_web** — look up best practices or documentation. Always cite source URLs.` : ""}
 
 ### Leaving Comments
 Use **leave_comment** to add inline comments on specific lines. Include:
