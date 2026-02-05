@@ -48,6 +48,15 @@ export async function runPreferenceAgent(
     context: PreferenceContext,
     recursionLimit: number = 100
 ): Promise<void> {
+    // Only respond to comments on the bot's own review comments, or /review commands
+    const originalComment = context.commentChain[0];
+    const latestComment = context.commentChain[context.commentChain.length - 1];
+    const isReviewCommand = latestComment?.body.trimStart().startsWith("/review");
+    if (!originalComment?.isBot && !isReviewCommand) {
+        console.log("⏭️ Skipping: original comment was not made by the bot");
+        return;
+    }
+
     // Reset cost tracking for this run
     resetRunningCost();
     const budget = getBudget();
