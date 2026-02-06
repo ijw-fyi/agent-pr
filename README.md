@@ -156,13 +156,44 @@ Go to **Settings → Secrets and variables → Actions**:
 
 Comment `/review` on any pull request!
 
+You can also pass inline overrides:
+
+```
+/review --budget 5 focus on security
+/review --model opus check the database migrations
+/review --budget 10 --max-loc 5000
+```
+
+## Command Overrides
+
+Override configuration per-review by passing flags in your `/review` comment. Flags are stripped from the text before the agent sees it.
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--budget <n>` | Set cost budget in USD | `--budget 10` |
+| `--model <name>` | Override the model | `--model opus` |
+| `--recursion-limit <n>` | Max agent steps | `--recursion-limit 50` |
+| `--max-loc <n>` | Max lines of code to review | `--max-loc 5000` |
+
+### Model Aliases
+
+| Alias | Resolves to |
+|-------|------------|
+| `opus` | `anthropic/claude-opus-4.6` |
+| `sonnet` | `anthropic/claude-sonnet-4.5` |
+
+Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opus-4.6`).
+
 ## Configuration
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MODEL` | `anthropic/claude-4.5-sonnet` | OpenRouter model identifier |
+| `MODEL` | `anthropic/claude-4.5-sonnet` | OpenRouter model identifier (overridable via `--model`) |
+| `AGENT_PR_BUDGET` | `1.0` | Cost budget in USD (overridable via `--budget`) |
+| `RECURSION_LIMIT` | `100` | Max agent steps (overridable via `--recursion-limit`) |
+| `PR_AGENT_MAX_LOC` | unlimited | Max diff LOC to review (overridable via `--max-loc`) |
 | `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 | `GEMINI_API_KEY` | - | Enables web search with Gemini |
 
