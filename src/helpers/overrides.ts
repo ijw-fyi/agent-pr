@@ -70,3 +70,41 @@ export function applyOverrides(overrides: Record<string, string>): void {
         process.env[envVar] = value;
     }
 }
+
+/**
+ * Find the /review trigger comment body from a list of comments.
+ * Uses TRIGGER_COMMENT_ID if available, otherwise finds the last
+ * comment starting with /review.
+ */
+export function findReviewCommentBody(comments: Array<{ id?: number; body: string }>): string | null {
+    const triggerCommentId = process.env.TRIGGER_COMMENT_ID;
+
+    // Try matching by ID first
+    if (triggerCommentId) {
+        const id = parseInt(triggerCommentId, 10);
+        const match = comments.find(c => c.id === id);
+        if (match) return match.body;
+    }
+
+    // Fall back to last comment starting with /review
+    for (let i = comments.length - 1; i >= 0; i--) {
+        if (comments[i].body.trimStart().startsWith('/review')) {
+            return comments[i].body;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Parse overrides from a review comment body, apply them to process.env,
+ * and return the stripped text. Returns null if no review comment found.
+ */
+export function processReviewOverrides(commentBody: string): string {
+    const { overrides, strippedText } = parseCommandOverrides(commentBody);
+    if (Object.keys(overrides).length > 0) {
+        applyOverrides(overrides);
+        console.log(`Applied ${Object.keys(overrides).length} override(s) from comment`);
+    }
+    return strippedText;
+}
