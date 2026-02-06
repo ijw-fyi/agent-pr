@@ -12,7 +12,7 @@ import { getVersion } from "../../helpers/version.js";
 // Files that should be excluded from diff context and LOC counting
 const LOCK_FILES = ['yarn.lock', 'package-lock.json', 'pnpm-lock.yaml', 'uv.lock', 'poetry.lock', 'Cargo.lock', 'Gemfile.lock', 'composer.lock', 'bun.lockb'];
 const BINARY_EXTENSIONS = ['.wasm', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.pdf', '.zip', '.tar', '.gz'];
-const ARTIFACT_EXTENSIONS = ['.min.js', '.map', '.svg'];
+const ARTIFACT_EXTENSIONS = ['.min.js', '.map', '.svg', '.json'];
 
 /**
  * Check if a file should be excluded from review based on its path
