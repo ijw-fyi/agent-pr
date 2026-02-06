@@ -13,6 +13,12 @@ const FLAG_CONFIG: Record<string, { envVar: string; type: 'number' | 'string' }>
     'max-loc':         { envVar: 'PR_AGENT_MAX_LOC', type: 'number' },
 };
 
+const MODEL_ALIASES: Record<string, string> = {
+    'opus':   'anthropic/claude-opus-4.6',
+    'sonnet': 'anthropic/claude-sonnet-4.5',
+    'sonet':  'anthropic/claude-sonnet-4.5',
+};
+
 export interface ParsedOverrides {
     overrides: Record<string, string>;
     strippedText: string;
@@ -48,7 +54,9 @@ export function parseCommandOverrides(commentBody: string): ParsedOverrides {
                 }
                 overrides[config.envVar] = value;
             } else {
-                overrides[config.envVar] = value;
+                overrides[config.envVar] = config.envVar === 'MODEL'
+                    ? (MODEL_ALIASES[value.toLowerCase()] ?? value)
+                    : value;
             }
 
             console.log(`🔧 Override: --${flag} ${value} → ${config.envVar}=${value}`);
