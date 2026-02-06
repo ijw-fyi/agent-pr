@@ -6,7 +6,7 @@ import type { PreferenceContext } from "./agents/code-comment/index.js";
 import { gatherPreferenceContext } from "./helpers/preference.js";
 import { initMCPClients, getMCPTools, closeMCPClients } from "./mcp/client.js";
 import { addMCPTools } from "./tools/index.js";
-import { findReviewCommentBody, processReviewOverrides } from "./helpers/overrides.js";
+import { findReviewCommentBody, processReviewOverrides, stripOverrideFlags } from "./helpers/overrides.js";
 
 /**
  * Main entry point for the PR Review Agent
@@ -93,15 +93,16 @@ async function runReviewMode(
     console.log(`Changes: ${context.headBranch} → ${context.baseBranch}`);
     console.log(`HEAD SHA: ${context.headSha}`);
 
-    // Parse overrides from the /review trigger comment and strip flags
+    // Parse overrides from the /review trigger comment
     // This must happen before reading MODEL/RECURSION_LIMIT so --model/--recursion-limit work
     const reviewBody = findReviewCommentBody(context.conversation);
     if (reviewBody) {
-        const strippedText = processReviewOverrides(reviewBody);
-        const triggerComment = context.conversation.find(c => c.body === reviewBody);
-        if (triggerComment) {
-            triggerComment.body = strippedText;
-        }
+        processReviewOverrides(reviewBody);
+    }
+
+    // Strip override flags from all comments
+    for (const comment of context.conversation) {
+        comment.body = stripOverrideFlags(comment.body);
     }
 
     // Validate overridable env vars after overrides are applied
@@ -167,14 +168,15 @@ async function runPreferenceMode(
         return;
     }
 
-    // Parse overrides from the /review trigger comment and strip flags
+    // Parse overrides from the /review trigger comment
     const reviewBody = findReviewCommentBody(context.commentChain);
     if (reviewBody) {
-        const strippedText = processReviewOverrides(reviewBody);
-        const triggerComment = context.commentChain.find(c => c.body === reviewBody);
-        if (triggerComment) {
-            triggerComment.body = strippedText;
-        }
+        processReviewOverrides(reviewBody);
+    }
+
+    // Strip override flags from all comments
+    for (const comment of context.commentChain) {
+        comment.body = stripOverrideFlags(comment.body);
     }
 
     // Run the preference agent

@@ -106,7 +106,7 @@ export function findReviewCommentBody(comments: Array<{ id?: number; body: strin
 
 /**
  * Parse overrides from a review comment body, apply them to process.env,
- * and return the stripped text. Returns null if no review comment found.
+ * and return the stripped text.
  */
 export function processReviewOverrides(commentBody: string): string {
     const { overrides, strippedText } = parseCommandOverrides(commentBody);
@@ -115,4 +115,18 @@ export function processReviewOverrides(commentBody: string): string {
         console.log(`Applied ${Object.keys(overrides).length} override(s) from comment`);
     }
     return strippedText;
+}
+
+/**
+ * Strip --flag value patterns from text without parsing overrides.
+ * Use this to clean all comments so the agent never sees raw flags.
+ */
+export function stripOverrideFlags(text: string): string {
+    if (!text) return text;
+    let stripped = text;
+    for (const flag of Object.keys(FLAG_CONFIG)) {
+        const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'gi');
+        stripped = stripped.replace(pattern, '');
+    }
+    return stripped.replace(/  +/g, ' ').trim();
 }
