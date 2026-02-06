@@ -14,6 +14,11 @@ cd "$PROJECT_ROOT"
 echo "=== PR Review Agent Release Script ==="
 echo ""
 
+# Step 0: Pull latest changes
+echo "⬇️  Pulling latest changes..."
+git pull
+echo "   ✓ Up to date"
+
 # Step 1: Sync WASM files from node_modules
 echo "📦 Syncing tree-sitter WASM files from node_modules..."
 "$SCRIPT_DIR/sync-wasm.sh"
