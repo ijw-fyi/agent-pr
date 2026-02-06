@@ -6,6 +6,7 @@ import type { PreferenceContext } from "./agents/code-comment/index.js";
 import { gatherPreferenceContext } from "./helpers/preference.js";
 import { initMCPClients, getMCPTools, closeMCPClients } from "./mcp/client.js";
 import { addMCPTools } from "./tools/index.js";
+import { parseCommandOverrides, applyOverrides } from "./helpers/overrides.js";
 
 /**
  * Main entry point for the PR Review Agent
@@ -47,6 +48,17 @@ async function main(): Promise<void> {
             console.warn(`Invalid RECURSION_LIMIT: ${recursionLimitStr}, using default 100`);
         }
         const effectiveRecursionLimit = isNaN(recursionLimit) ? 100 : recursionLimit;
+
+        // Parse command overrides from trigger comment (e.g., /review --budget 10)
+        const triggerCommentBody = process.env.TRIGGER_COMMENT_BODY || '';
+        if (triggerCommentBody) {
+            const { overrides, strippedText } = parseCommandOverrides(triggerCommentBody);
+            if (Object.keys(overrides).length > 0) {
+                applyOverrides(overrides);
+                console.log(`Applied ${Object.keys(overrides).length} override(s) from comment`);
+            }
+            process.env.TRIGGER_COMMENT_STRIPPED = strippedText;
+        }
 
         // Initialize GitHub client
         initGitHub(githubToken);
@@ -106,6 +118,16 @@ async function runReviewMode(
     console.log(`Changes: ${context.headBranch} → ${context.baseBranch}`);
     console.log(`HEAD SHA: ${context.headSha}`);
 
+    // Strip override flags from the trigger comment in conversation
+    const strippedText = process.env.TRIGGER_COMMENT_STRIPPED;
+    if (triggerCommentId && strippedText) {
+        const triggerId = parseInt(triggerCommentId, 10);
+        const triggerComment = context.conversation.find(c => c.id === triggerId);
+        if (triggerComment) {
+            triggerComment.body = strippedText;
+        }
+    }
+
     // Set HEAD_SHA for tools that need it
     process.env.HEAD_SHA = context.headSha;
 
@@ -152,6 +174,15 @@ async function runPreferenceMode(
     if (!context) {
         console.log("Could not gather context for preference extraction");
         return;
+    }
+
+    // Strip override flags from the trigger comment in the comment chain
+    const strippedText = process.env.TRIGGER_COMMENT_STRIPPED;
+    if (strippedText && context.commentChain.length > 0) {
+        const lastComment = context.commentChain[context.commentChain.length - 1];
+        if (lastComment.body.trimStart().startsWith('/review')) {
+            lastComment.body = strippedText;
+        }
     }
 
     // Run the preference agent
