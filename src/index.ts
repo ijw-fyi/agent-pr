@@ -6,6 +6,7 @@ import type { PreferenceContext } from "./agents/code-comment/index.js";
 import { gatherPreferenceContext } from "./helpers/preference.js";
 import { initMCPClients, getMCPTools, closeMCPClients } from "./mcp/client.js";
 import { addMCPTools } from "./tools/index.js";
+import { findReviewCommentBody, processReviewOverrides, stripOverrideFlags } from "./helpers/overrides.js";
 
 /**
  * Main entry point for the PR Review Agent
@@ -13,25 +14,19 @@ import { addMCPTools } from "./tools/index.js";
  */
 async function main(): Promise<void> {
     try {
-        // Get configuration from environment
+        // Validate env vars required to fetch context (before overrides)
         const githubToken = process.env.GITHUB_TOKEN;
         const openrouterKey = process.env.OPENROUTER_KEY;
-        const model = process.env.MODEL;
         const owner = process.env.REPO_OWNER;
         const repo = process.env.REPO_NAME;
         const prNumberStr = process.env.PR_NUMBER;
         const actionMode = process.env.ACTION_MODE || "review";
-        const recursionLimitStr = process.env.RECURSION_LIMIT || "100";
 
-        // Validate required environment variables
         if (!githubToken) {
             throw new Error("GITHUB_TOKEN is required");
         }
         if (!openrouterKey) {
             throw new Error("OPENROUTER_KEY is required");
-        }
-        if (!model) {
-            throw new Error("MODEL is required");
         }
         if (!owner || !repo || !prNumberStr) {
             throw new Error("REPO_OWNER, REPO_NAME, and PR_NUMBER are required");
@@ -42,20 +37,15 @@ async function main(): Promise<void> {
             throw new Error(`Invalid PR_NUMBER: ${prNumberStr}`);
         }
 
-        const recursionLimit = parseInt(recursionLimitStr, 10);
-        if (isNaN(recursionLimit)) {
-            console.warn(`Invalid RECURSION_LIMIT: ${recursionLimitStr}, using default 100`);
-        }
-        const effectiveRecursionLimit = isNaN(recursionLimit) ? 100 : recursionLimit;
-
         // Initialize GitHub client
         initGitHub(githubToken);
 
         // Dispatch based on action mode
+        // MODEL and RECURSION_LIMIT are validated after overrides are applied
         if (actionMode === "preference") {
-            await runPreferenceMode(owner, repo, prNumber, effectiveRecursionLimit);
+            await runPreferenceMode(owner, repo, prNumber);
         } else {
-            await runReviewMode(owner, repo, prNumber, model, effectiveRecursionLimit);
+            await runReviewMode(owner, repo, prNumber);
         }
     } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
@@ -74,11 +64,8 @@ async function runReviewMode(
     owner: string,
     repo: string,
     prNumber: number,
-    model: string,
-    recursionLimit: number
 ): Promise<void> {
     console.log(`Starting PR review for ${owner}/${repo}#${prNumber}`);
-    console.log(`Using model: ${model}`);
 
     // Add eyes reaction to the triggering comment to show we've started
     const triggerCommentId = process.env.TRIGGER_COMMENT_ID;
@@ -106,6 +93,27 @@ async function runReviewMode(
     console.log(`Changes: ${context.headBranch} → ${context.baseBranch}`);
     console.log(`HEAD SHA: ${context.headSha}`);
 
+    // Parse overrides from the /review trigger comment
+    // This must happen before reading MODEL/RECURSION_LIMIT so --model/--recursion-limit work
+    const reviewBody = findReviewCommentBody(context.conversation);
+    if (reviewBody) {
+        processReviewOverrides(reviewBody);
+    }
+
+    // Strip override flags from all comments
+    for (const comment of context.conversation) {
+        comment.body = stripOverrideFlags(comment.body);
+    }
+
+    // Validate overridable env vars after overrides are applied
+    const model = process.env.MODEL;
+    if (!model) {
+        throw new Error("MODEL is required (set via env var or --model flag)");
+    }
+    console.log(`Using model: ${model}`);
+
+    const recursionLimit = getRecursionLimit();
+
     // Set HEAD_SHA for tools that need it
     process.env.HEAD_SHA = context.headSha;
 
@@ -116,14 +124,20 @@ async function runReviewMode(
     console.log("Review completed successfully!");
 }
 
-/**
- * Run the preference extraction agent
- */
+function getRecursionLimit(): number {
+    const str = process.env.RECURSION_LIMIT || "100";
+    const parsed = parseInt(str, 10);
+    if (isNaN(parsed)) {
+        console.warn(`Invalid RECURSION_LIMIT: ${str}, using default 100`);
+        return 100;
+    }
+    return parsed;
+}
+
 async function runPreferenceMode(
     owner: string,
     repo: string,
     prNumber: number,
-    recursionLimit: number
 ): Promise<void> {
     const commentIdStr = process.env.COMMENT_ID;
     if (!commentIdStr) {
@@ -154,8 +168,19 @@ async function runPreferenceMode(
         return;
     }
 
+    // Parse overrides from the /review trigger comment
+    const reviewBody = findReviewCommentBody(context.commentChain);
+    if (reviewBody) {
+        processReviewOverrides(reviewBody);
+    }
+
+    // Strip override flags from all comments
+    for (const comment of context.commentChain) {
+        comment.body = stripOverrideFlags(comment.body);
+    }
+
     // Run the preference agent
-    await runPreferenceAgent(context, recursionLimit);
+    await runPreferenceAgent(context, getRecursionLimit());
 
     console.log("Preference extraction completed!");
 }
