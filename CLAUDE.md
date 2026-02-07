@@ -26,7 +26,7 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
    - Runs a 3-phase ReAct agent: triage → investigation → submit review
    - Uses tools to read files, grep, leave inline comments, and submit a final verdict
 
-2. **Preference mode** (`ACTION_MODE=preference`) — `src/agents/code-comment/index.ts`
+2. **Comment reply mode** (`ACTION_MODE=comment-reply`) — `src/agents/comment-reply/index.ts`
    - Triggered by replies to the bot's review comments
    - Extracts coding preferences and stores them on a `__agent_pr__` orphan branch
 

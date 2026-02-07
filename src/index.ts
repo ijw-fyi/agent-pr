@@ -1,16 +1,16 @@
 import * as core from "@actions/core";
 import { initGitHub, gatherPRContext, addReactionToComment } from "./context/github.js";
 import { runReview } from "./agents/review/index.js";
-import { runPreferenceAgent } from "./agents/code-comment/index.js";
-import type { PreferenceContext } from "./agents/code-comment/index.js";
-import { gatherPreferenceContext } from "./helpers/preference.js";
+import { runCommentReplyAgent } from "./agents/comment-reply/index.js";
+import type { CommentReplyContext } from "./agents/comment-reply/index.js";
+import { gatherCommentReplyContext } from "./helpers/preference.js";
 import { initMCPClients, getMCPTools, closeMCPClients } from "./mcp/client.js";
 import { addMCPTools } from "./tools/index.js";
 import { findReviewCommentBody, processReviewOverrides, stripOverrideFlags } from "./helpers/overrides.js";
 
 /**
  * Main entry point for the PR Review Agent
- * Dispatches to either review mode or preference learning mode based on ACTION_MODE
+ * Dispatches to either review mode or comment reply mode based on ACTION_MODE
  */
 async function main(): Promise<void> {
     try {
@@ -42,8 +42,8 @@ async function main(): Promise<void> {
 
         // Dispatch based on action mode
         // MODEL and RECURSION_LIMIT are validated after overrides are applied
-        if (actionMode === "preference") {
-            await runPreferenceMode(owner, repo, prNumber);
+        if (actionMode === "comment-reply") {
+            await runCommentReplyMode(owner, repo, prNumber);
         } else {
             await runReviewMode(owner, repo, prNumber);
         }
@@ -134,14 +134,14 @@ function getRecursionLimit(): number {
     return parsed;
 }
 
-async function runPreferenceMode(
+async function runCommentReplyMode(
     owner: string,
     repo: string,
     prNumber: number,
 ): Promise<void> {
     const commentIdStr = process.env.COMMENT_ID;
     if (!commentIdStr) {
-        throw new Error("COMMENT_ID is required for preference mode");
+        throw new Error("COMMENT_ID is required for comment-reply mode");
     }
 
     const commentId = parseInt(commentIdStr, 10);
@@ -160,11 +160,11 @@ async function runPreferenceMode(
         console.log(`Added ${mcpTools.length} MCP tool(s)`);
     }
 
-    // Gather context for the preference agent
-    const context = await gatherPreferenceContext(owner, repo, prNumber, commentId);
+    // Gather context for the comment reply agent
+    const context = await gatherCommentReplyContext(owner, repo, prNumber, commentId);
 
     if (!context) {
-        console.log("Could not gather context for preference extraction");
+        console.log("Could not gather context for comment reply");
         return;
     }
 
@@ -179,10 +179,10 @@ async function runPreferenceMode(
         comment.body = stripOverrideFlags(comment.body);
     }
 
-    // Run the preference agent
-    await runPreferenceAgent(context, getRecursionLimit());
+    // Run the comment reply agent
+    await runCommentReplyAgent(context, getRecursionLimit());
 
-    console.log("Preference extraction completed!");
+    console.log("Comment reply agent completed!");
 }
 
 
