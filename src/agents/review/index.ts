@@ -279,6 +279,16 @@ ${context.conversation.map((c) => `- **${c.author}**:\n\`\`\`\n${c.body}\n\`\`\`
 `;
     }
 
+    if (context.claudeMd) {
+        message += `
+## Repository Guidelines (CLAUDE.md)
+The repository contains the following guidelines. Treat these as project conventions and respect them when reviewing:
+\`\`\`
+${context.claudeMd}
+\`\`\`
+`;
+    }
+
     if (context.preferences) {
         message += `
 ## User Preferences

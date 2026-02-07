@@ -88,6 +88,7 @@ When leaving inline comments, structure them like this:
 - If you're unsure about something, say so
 - Don't leave comments on code that's correct and follows best practices
 - Consider the context - understand why code might be written a certain way before criticizing
+- If repository guidelines (CLAUDE.md) are provided, respect them as project conventions when reviewing
 
 ## Final Step (MANDATORY)
 You MUST always submit a review using submit_review, even if you found no issues. Never end without submitting a review.
