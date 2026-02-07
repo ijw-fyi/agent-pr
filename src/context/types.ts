@@ -17,6 +17,8 @@ export interface PRContext {
     conversation: ConversationComment[];
     /** User preferences loaded from __agent_pr__ branch */
     preferences: string;
+    /** Repository guidelines loaded from CLAUDE.md */
+    claudeMd: string | null;
 }
 
 /**

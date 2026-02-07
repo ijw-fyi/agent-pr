@@ -43,6 +43,9 @@ export async function gatherPRContext(
         readPreferences(owner, repo),
     ]);
 
+    // Fetch CLAUDE.md from the base branch (not parallel with above since we need pr.base.ref)
+    const claudeMd = await fetchClaudeMd(owner, repo, pr.base.ref);
+
     return {
         owner,
         repo,
@@ -58,7 +61,30 @@ export async function gatherPRContext(
         existingComments: reviewComments,
         conversation: issueComments,
         preferences,
+        claudeMd,
     };
+}
+
+/**
+ * Fetch CLAUDE.md from the repository root at a given ref.
+ * Returns the file content, or null if it doesn't exist.
+ */
+async function fetchClaudeMd(owner: string, repo: string, ref: string): Promise<string | null> {
+    try {
+        const { data } = await octokit.rest.repos.getContent({
+            owner,
+            repo,
+            path: "CLAUDE.md",
+            ref,
+        });
+
+        if ("content" in data && data.type === "file") {
+            return Buffer.from(data.content, "base64").toString("utf-8");
+        }
+        return null;
+    } catch {
+        return null;
+    }
 }
 
 /**
