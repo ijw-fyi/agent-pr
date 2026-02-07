@@ -1,4 +1,4 @@
-export const PREFERENCE_PROMPT = `You are a code review assistant analyzing replies to your previous code review comments. Your job is to:
+export const COMMENT_REPLY_PROMPT = `You are a code review assistant analyzing replies to your previous code review comments. Your job is to:
 
 1. **Extract preferences** - Identify coding preferences from the user's replies
 2. **Continue conversations** - Reply when helpful or necessary

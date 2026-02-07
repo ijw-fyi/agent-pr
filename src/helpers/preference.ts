@@ -1,15 +1,15 @@
 import { getOctokit } from "../context/github.js";
-import type { PreferenceContext } from "../agents/code-comment/index.js";
+import type { CommentReplyContext } from "../agents/comment-reply/index.js";
 
 /**
- * Gather context for the preference agent from a comment reply
+ * Gather context for the comment reply agent from a comment reply
  */
-export async function gatherPreferenceContext(
+export async function gatherCommentReplyContext(
     owner: string,
     repo: string,
     prNumber: number,
     commentId: number
-): Promise<PreferenceContext | null> {
+): Promise<CommentReplyContext | null> {
     const octokit = getOctokit();
 
     // Get the comment that was replied to

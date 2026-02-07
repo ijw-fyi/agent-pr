@@ -1,6 +1,6 @@
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
-import { PREFERENCE_PROMPT } from "./prompt.js";
+import { COMMENT_REPLY_PROMPT } from "./prompt.js";
 import { storePreferenceTool } from "../../tools/store-preference.js";
 import { replyToCommentTool } from "../../tools/reply-to-comment.js";
 import { tools as reviewTools } from "../../tools/index.js";
@@ -12,9 +12,9 @@ import { getVersion } from "../../helpers/version.js";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 /**
- * Context for the preference agent
+ * Context for the comment reply agent
  */
-export interface PreferenceContext {
+export interface CommentReplyContext {
     owner: string;
     repo: string;
     // The file path where the original comment was left
@@ -30,10 +30,10 @@ export interface PreferenceContext {
 }
 
 /**
- * Get the tools available to the code comment agent
+ * Get the tools available to the comment reply agent
  * Uses the shared tools array (includes MCP tools) plus preference-specific tools
  */
-function getCodeCommentTools(): StructuredToolInterface[] {
+function getCommentReplyTools(): StructuredToolInterface[] {
     return [
         storePreferenceTool,
         replyToCommentTool,
@@ -42,10 +42,10 @@ function getCodeCommentTools(): StructuredToolInterface[] {
 }
 
 /**
- * Run the preference extraction agent
+ * Run the comment reply agent
  */
-export async function runPreferenceAgent(
-    context: PreferenceContext,
+export async function runCommentReplyAgent(
+    context: CommentReplyContext,
     recursionLimit: number = 100
 ): Promise<void> {
     // Only respond to comments on the bot's own review comments, or /review commands
@@ -66,7 +66,7 @@ export async function runPreferenceAgent(
     const model = createCachedChatOpenAI();
 
     // Get tools for the agent
-    const tools = getCodeCommentTools();
+    const tools = getCommentReplyTools();
 
     // Create agent with all available tools
     const agent = createReactAgent({
@@ -79,7 +79,7 @@ export async function runPreferenceAgent(
 
     // Build the system prompt with current preferences
     const systemPrompt =
-        PREFERENCE_PROMPT +
+        COMMENT_REPLY_PROMPT +
         (existingPreferences
             ? `\n\`\`\`\n${existingPreferences}\n\`\`\``
             : "(No preferences stored yet)");
@@ -87,7 +87,7 @@ export async function runPreferenceAgent(
     // Build the context message
     const contextMessage = buildContextMessage(context);
 
-    console.log("::group::🚀 Code Comment Agent Starting");
+    console.log("::group::🚀 Comment Reply Agent Starting");
     console.log(`Version: ${getVersion()}`);
     console.log(`Model: ${process.env.MODEL}`);
     console.log(`Repo: ${context.owner}/${context.repo}`);
@@ -202,7 +202,7 @@ export async function runPreferenceAgent(
     }
 
     console.log(`\n${"=".repeat(60)}`);
-    console.log(`Code Comment Agent completed. Total steps: ${stepCount}`);
+    console.log(`Comment Reply Agent completed. Total steps: ${stepCount}`);
     console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
     console.log(`📊 Tokens: ${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output, ${totalTokens.toLocaleString()} total`);
     console.log(`🔧 Tool Usage: ${totalToolCalls} calls${totalFailedCalls > 0 ? ` (${totalFailedCalls} failed)` : ''}`);
@@ -229,9 +229,9 @@ export async function runPreferenceAgent(
 }
 
 /**
- * Build the context message for the preference agent
+ * Build the context message for the comment reply agent
  */
-function buildContextMessage(context: PreferenceContext): string {
+function buildContextMessage(context: CommentReplyContext): string {
     const comments = context.commentChain
         .map((c) => `**${c.author}${c.isBot ? " (bot)" : ""}**: ${c.body}`)
         .join("\n\n");
