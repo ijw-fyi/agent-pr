@@ -184,7 +184,7 @@ async function runCommentReplyMode(
 
     // Check for /review command before stripping it
     const latestComment = context.commentChain[context.commentChain.length - 1];
-    const isReviewCommand = latestComment?.body.trimStart().startsWith("/review") ?? false;
+    const isReviewCommand = /^\s*\/review/i.test(latestComment?.body ?? "");
 
     // Strip override flags and /review command from all comments
     for (const comment of context.commentChain) {
