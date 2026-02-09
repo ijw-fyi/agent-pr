@@ -182,6 +182,10 @@ async function runCommentReplyMode(
         processReviewOverrides(reviewBody);
     }
 
+    // Check for /review command before stripping it
+    const latestComment = context.commentChain[context.commentChain.length - 1];
+    const isReviewCommand = latestComment?.body.trimStart().startsWith("/review") ?? false;
+
     // Strip override flags and /review command from all comments
     for (const comment of context.commentChain) {
         comment.body = stripOverrideFlags(comment.body);
@@ -189,7 +193,7 @@ async function runCommentReplyMode(
     }
 
     // Run the comment reply agent
-    await runCommentReplyAgent(context, getRecursionLimit());
+    await runCommentReplyAgent(context, getRecursionLimit(), isReviewCommand);
 
     console.log("Comment reply agent completed!");
 }
