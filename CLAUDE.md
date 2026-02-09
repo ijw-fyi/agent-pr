@@ -47,6 +47,11 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
 - **`src/mcp/`** — MCP client for connecting to HTTP/stdio MCP servers (DeepWiki by default)
 - **`src/preferences/git.ts`** — Preference storage on `__agent_pr__` orphan branch via GitHub API
 
+### Workflow Files
+
+- **`/.github/workflows/pr-review.yml`** — Reference workflow bundled with this repo
+- **External shared workflow** — https://github.com/ijw-fyi/.github-workflows/blob/main/.github/workflows/pr_review.yml — This is the workflow actually used by consuming repos via `workflow_call`. It sets `ACTION_MODE: preference` for the comment reply job (`pr_code_message`), which must be accepted as an alias for `comment-reply` in `src/index.ts`.
+
 ### Runtime Context
 
 Tools access runtime context through `process.env` variables: `REPO_OWNER`, `REPO_NAME`, `PR_NUMBER`, `HEAD_SHA`, `MODEL`, `OPENROUTER_KEY`, `GITHUB_TOKEN`. These are set at startup from GitHub Actions environment.
