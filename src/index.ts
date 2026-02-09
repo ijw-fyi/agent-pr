@@ -176,24 +176,39 @@ async function runCommentReplyMode(
         return;
     }
 
-    // Parse overrides from the /review trigger comment
-    const reviewBody = findReviewCommentBody(context.commentChain);
-    if (reviewBody) {
-        processReviewOverrides(reviewBody);
+    // Check for slash commands (/question, /pr, /reply) before stripping them.
+    // latestComment is always the triggering comment (the one that fired the workflow),
+    // since COMMENT_ID comes from github.event.comment.id and the thread is sorted by created_at.
+    const latestComment = context.commentChain[context.commentChain.length - 1];
+    const isSlashCommand = /^\s*\/(question|pr|reply)/i.test(latestComment?.body ?? "");
+    const originalComment = context.commentChain[0];
+
+    // Two cases where we respond:
+    // 1. The root comment in the thread was left by the bot (user is replying to our review)
+    // 2. The triggering comment is a slash command (user is asking a question on any code)
+    // All other review comments are ignored to avoid noise.
+    if (!originalComment?.isBot && !isSlashCommand) {
+        console.log("⏭️ Skipping: original comment was not made by the bot and no slash command found");
+        return;
     }
 
-    // Check for /review command before stripping it
-    const latestComment = context.commentChain[context.commentChain.length - 1];
-    const isReviewCommand = /^\s*\/review/i.test(latestComment?.body ?? "");
+    // Parse overrides (--model, --budget, etc.) from the slash command comment.
+    // We intentionally parse from latestComment (the triggering comment) rather than
+    // searching the whole thread, since overrides only make sense on the command that
+    // initiated this run.
+    if (isSlashCommand) {
+        processReviewOverrides(latestComment.body);
+    }
 
-    // Strip override flags and /review command from all comments
+    // Strip override flags and slash commands from all comments so the AI sees
+    // clean conversation text without command syntax or flag noise.
     for (const comment of context.commentChain) {
         comment.body = stripOverrideFlags(comment.body);
-        comment.body = comment.body.replace(/^\s*\/review\s*/i, '').trim();
+        comment.body = comment.body.replace(/^\s*\/(question|pr|reply)\s*/i, '').trim();
     }
 
     // Run the comment reply agent
-    await runCommentReplyAgent(context, getRecursionLimit(), isReviewCommand);
+    await runCommentReplyAgent(context, getRecursionLimit());
 
     console.log("Comment reply agent completed!");
 }

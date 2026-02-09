@@ -27,8 +27,13 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
    - Uses tools to read files, grep, leave inline comments, and submit a final verdict
 
 2. **Comment reply mode** (`ACTION_MODE=comment-reply`) — `src/agents/comment-reply/index.ts`
-   - Triggered by replies to the bot's review comments
-   - Extracts coding preferences and stores them on a `__agent_pr__` orphan branch
+   - Triggered in two cases:
+     1. A user replies to one of the bot's review comments (automatic)
+     2. A user writes `/question`, `/pr`, or `/reply` on any code line (even non-bot comments)
+   - Answers the user's comment in-thread; does NOT perform a full PR review
+   - Can extract coding preferences and store them on a `__agent_pr__` orphan branch
+   - Does **not** have access to `leave_comment` or `submit_review` tools (review-only tools are filtered out)
+   - Slash commands support override flags (e.g., `/question --model gpt-4 why is this async?`)
 
 ### Key Modules
 
@@ -37,7 +42,7 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
 - **`src/tools/`** — LangChain tool implementations. Each tool exports a `tool()` call with a Zod schema. Tool names use snake_case (e.g., `read_files`, `leave_comment`)
 - **`src/tools/index.ts`** — Tool registry; builds the tool array and accepts MCP tools dynamically
 - **`src/helpers/cached-model.ts`** — OpenRouter client with prompt caching support, cost/token tracking
-- **`src/helpers/overrides.ts`** — Parses `/review` command flags (`--budget`, `--model`, `--recursion-limit`, `--max-loc`)
+- **`src/helpers/overrides.ts`** — Parses command flags (`--budget`, `--model`, `--recursion-limit`, `--max-loc`) from `/review` and slash commands (`/question`, `/pr`, `/reply`)
 - **`src/helpers/tree-sitter.ts`** — Web Tree Sitter parser for symbol extraction (TS, JS, Python, C, C++)
 - **`src/mcp/`** — MCP client for connecting to HTTP/stdio MCP servers (DeepWiki by default)
 - **`src/preferences/git.ts`** — Preference storage on `__agent_pr__` orphan branch via GitHub API

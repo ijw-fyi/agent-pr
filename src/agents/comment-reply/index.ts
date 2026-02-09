@@ -28,15 +28,20 @@ export interface CommentReplyContext {
     }>;
 }
 
+// Tools that only make sense during a full PR review, not in comment reply mode.
+const REVIEW_ONLY_TOOLS = new Set(["leave_comment", "submit_review"]);
+
 /**
- * Get the tools available to the comment reply agent
- * Uses the shared tools array (includes MCP tools) plus preference-specific tools
+ * Get the tools available to the comment reply agent.
+ * Includes shared tools (read_files, grep, etc.) and MCP tools, but filters out
+ * review-only tools (leave_comment, submit_review) that could cause the agent
+ * to act outside the scope of the comment thread.
  */
 function getCommentReplyTools(): StructuredToolInterface[] {
     return [
         storePreferenceTool,
         replyToCommentTool,
-        ...reviewTools,  // Includes read_files, list_directory, grep, search_web, and MCP tools
+        ...reviewTools.filter(t => !REVIEW_ONLY_TOOLS.has(t.name)),
     ];
 }
 
@@ -45,16 +50,8 @@ function getCommentReplyTools(): StructuredToolInterface[] {
  */
 export async function runCommentReplyAgent(
     context: CommentReplyContext,
-    recursionLimit: number = 100,
-    isReviewCommand: boolean = false
+    recursionLimit: number = 100
 ): Promise<void> {
-    // Only respond to comments on the bot's own review comments, or /review commands
-    const originalComment = context.commentChain[0];
-    if (!originalComment?.isBot && !isReviewCommand) {
-        console.log("⏭️ Skipping: original comment was not made by the bot");
-        return;
-    }
-
     // Reset cost tracking for this run
     resetRunningCost();
     const budget = getBudget();
