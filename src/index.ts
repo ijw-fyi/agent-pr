@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { initGitHub, gatherPRContext, addReactionToComment } from "./context/github.js";
+import { initGitHub, gatherPRContext, addReactionToComment, addReactionToReviewComment } from "./context/github.js";
 import { runReview } from "./agents/review/index.js";
 import { runCommentReplyAgent } from "./agents/comment-reply/index.js";
 import type { CommentReplyContext } from "./agents/comment-reply/index.js";
@@ -152,6 +152,14 @@ async function runCommentReplyMode(
     console.log(`Processing comment reply for ${owner}/${repo}#${prNumber}`);
     console.log(`Comment ID: ${commentId}`);
 
+    // Add eyes reaction immediately to show we're processing
+    try {
+        await addReactionToReviewComment(owner, repo, commentId, "eyes");
+        console.log("Added 👀 reaction to comment");
+    } catch (error) {
+        console.warn("Could not add eyes reaction:", error);
+    }
+
     // Initialize MCP clients and add their tools
     await initMCPClients();
     const mcpTools = await getMCPTools();
@@ -174,13 +182,18 @@ async function runCommentReplyMode(
         processReviewOverrides(reviewBody);
     }
 
-    // Strip override flags from all comments
+    // Check for /review command before stripping it
+    const latestComment = context.commentChain[context.commentChain.length - 1];
+    const isReviewCommand = /^\s*\/review/i.test(latestComment?.body ?? "");
+
+    // Strip override flags and /review command from all comments
     for (const comment of context.commentChain) {
         comment.body = stripOverrideFlags(comment.body);
+        comment.body = comment.body.replace(/^\s*\/review\s*/i, '').trim();
     }
 
     // Run the comment reply agent
-    await runCommentReplyAgent(context, getRecursionLimit());
+    await runCommentReplyAgent(context, getRecursionLimit(), isReviewCommand);
 
     console.log("Comment reply agent completed!");
 }
