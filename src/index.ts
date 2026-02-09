@@ -176,24 +176,30 @@ async function runCommentReplyMode(
         return;
     }
 
-    // Parse overrides from the /review trigger comment
-    const reviewBody = findReviewCommentBody(context.commentChain);
-    if (reviewBody) {
-        processReviewOverrides(reviewBody);
+    // Check for slash commands (/question, /pr, /reply) before stripping them
+    const latestComment = context.commentChain[context.commentChain.length - 1];
+    const isSlashCommand = /^\s*\/(question|pr|reply)/i.test(latestComment?.body ?? "");
+    const originalComment = context.commentChain[0];
+
+    // Only respond to comments on the bot's own review comments, or slash commands
+    if (!originalComment?.isBot && !isSlashCommand) {
+        console.log("⏭️ Skipping: original comment was not made by the bot and no slash command found");
+        return;
     }
 
-    // Check for /review command before stripping it
-    const latestComment = context.commentChain[context.commentChain.length - 1];
-    const isReviewCommand = /^\s*\/review/i.test(latestComment?.body ?? "");
+    // Parse overrides from the slash command comment
+    if (isSlashCommand) {
+        processReviewOverrides(latestComment.body);
+    }
 
-    // Strip override flags and /review command from all comments
+    // Strip override flags and slash commands from all comments
     for (const comment of context.commentChain) {
         comment.body = stripOverrideFlags(comment.body);
-        comment.body = comment.body.replace(/^\s*\/review\s*/i, '').trim();
+        comment.body = comment.body.replace(/^\s*\/(question|pr|reply)\s*/i, '').trim();
     }
 
     // Run the comment reply agent
-    await runCommentReplyAgent(context, getRecursionLimit(), isReviewCommand);
+    await runCommentReplyAgent(context, getRecursionLimit());
 
     console.log("Comment reply agent completed!");
 }

@@ -45,16 +45,8 @@ function getCommentReplyTools(): StructuredToolInterface[] {
  */
 export async function runCommentReplyAgent(
     context: CommentReplyContext,
-    recursionLimit: number = 100,
-    isReviewCommand: boolean = false
+    recursionLimit: number = 100
 ): Promise<void> {
-    // Only respond to comments on the bot's own review comments, or /review commands
-    const originalComment = context.commentChain[0];
-    if (!originalComment?.isBot && !isReviewCommand) {
-        console.log("⏭️ Skipping: original comment was not made by the bot");
-        return;
-    }
-
     // Reset cost tracking for this run
     resetRunningCost();
     const budget = getBudget();
