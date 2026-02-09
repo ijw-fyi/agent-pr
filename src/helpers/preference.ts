@@ -24,12 +24,6 @@ export async function gatherCommentReplyContext(
         return null;
     }
 
-    // Only process replies, not root comments
-    if (!comment.in_reply_to_id) {
-        console.log("Comment is not a reply");
-        return null;
-    }
-
     // Get all review comments on this PR
     const { data: allComments } = await octokit.rest.pulls.listReviewComments({
         owner,
