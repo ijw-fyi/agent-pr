@@ -282,7 +282,8 @@ ${context.conversation.map((c) => `- **${c.author}**:\n\`\`\`\n${c.body}\n\`\`\`
     if (context.claudeMd) {
         message += `
 ## Repository Guidelines (CLAUDE.md)
-The repository contains the following guidelines. Treat these as project conventions and respect them when reviewing:
+The repository contains the following guidelines. Treat these as project conventions and respect them when reviewing.
+If the guidelines reference files using \`@path/to/file\` syntax (e.g., \`@.claude/docs/api/index.md\`), use read_files to load those files when they would help you understand the code being reviewed. Only read files that are relevant to the changes in this PR.
 \`\`\`
 ${context.claudeMd}
 \`\`\`
