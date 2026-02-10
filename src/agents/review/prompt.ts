@@ -104,9 +104,7 @@ Structure your summary with these sections:
 ### Summary Structure
 1. **Title**: A brief title describing the PR (e.g., "Budget System Review Summary")
 2. **Overview**: 1-2 sentences summarizing what the PR does and your overall assessment
-3. **Review Complexity**: Briefly describe:
-   - How complex this PR was to review (simple, moderate, complex)
-   - What made it easy or difficult (e.g., number of files, domain knowledge required, interconnected changes)
+3. **What Was Verified**: List the key things you checked during the review (e.g., error handling paths, null safety, concurrency correctness, API contract consistency)
 4. **Issues Found**: List each issue with:
    - Issue name and location (file, line if applicable)
    - Brief description of the problem and why it matters
