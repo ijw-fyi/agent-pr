@@ -272,13 +272,6 @@ ${context.existingComments.map((c) => `- ${c.isResolved ? "✅ " : ""}**${c.auth
 `;
     }
 
-    if (context.conversation.length > 0) {
-        message += `
-## PR Conversation
-${context.conversation.map((c) => `- **${c.author}**:\n\`\`\`\n${c.body}\n\`\`\``).join("\n")}
-`;
-    }
-
     if (context.claudeMd) {
         message += `
 ## Repository Guidelines (CLAUDE.md)
@@ -297,6 +290,13 @@ The following preferences have been learned from previous interactions. Please r
 \`\`\`
 ${context.preferences}
 \`\`\`
+`;
+    }
+
+    if (context.conversation.length > 0) {
+        message += `
+## PR Conversation
+${context.conversation.map((c) => `- **${c.author}**:\n\`\`\`\n${c.body}\n\`\`\``).join("\n")}
 `;
     }
 
