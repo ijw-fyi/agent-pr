@@ -486,7 +486,7 @@ async function dismissPreviousReviews(
         const botLogin = currentUser.login;
 
         // List all reviews on the PR
-        const { data: reviews } = await octokit.rest.pulls.listReviews({
+        const reviews = await octokit.paginate(octokit.rest.pulls.listReviews, {
             owner,
             repo,
             pull_number: prNumber,
@@ -505,7 +505,8 @@ async function dismissPreviousReviews(
             return;
         }
 
-        // Dismiss each review using GraphQL (more reliable than REST dismissReview)
+        // Dismiss each review via GraphQL — REST dismissReview was not clearing status
+        // https://docs.github.com/en/graphql/reference/mutations#dismisspullrequestreview
         for (const review of reviewsToDismiss) {
             try {
                 await octokit.graphql(`
