@@ -4,6 +4,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { parseMCPConfig, type MCPServerConfig } from "./config.js";
+import { recordMCPToolCall } from "../helpers/cached-model.js";
 
 /**
  * Active MCP client connections
@@ -118,6 +119,8 @@ function createLangChainToolFromMCP(
     // For simplicity, we accept any object and let MCP server validate
     const schema = z.object({}).passthrough();
 
+    const toolName = `${serverName}_${mcpTool.name}`;
+
     return tool(
         async (input) => {
             try {
@@ -125,6 +128,9 @@ function createLangChainToolFromMCP(
                     name: mcpTool.name,
                     arguments: input as Record<string, unknown>,
                 });
+
+                // Record successful MCP tool call
+                recordMCPToolCall(toolName, false);
 
                 // Extract text content from result
                 if (result.content && Array.isArray(result.content)) {
@@ -136,11 +142,12 @@ function createLangChainToolFromMCP(
 
                 return JSON.stringify(result);
             } catch (error) {
+                recordMCPToolCall(toolName, true);
                 return `Error calling MCP tool '${mcpTool.name}': ${error instanceof Error ? error.message : "Unknown error"}`;
             }
         },
         {
-            name: `${serverName}_${mcpTool.name}`,
+            name: toolName,
             description:
                 mcpTool.description || `Tool from MCP server: ${serverName}`,
             schema,

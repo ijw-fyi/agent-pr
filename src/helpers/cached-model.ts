@@ -61,6 +61,11 @@ let callCount = 0;
 const toolUsage: Record<string, number> = {};
 const failedToolUsage: Record<string, number> = {};
 
+// Separate MCP tool tracking (recorded directly in the MCP wrapper)
+// Merged into stats via Math.max to avoid double-counting with processChunk
+const mcpToolUsage: Record<string, number> = {};
+const mcpFailedToolUsage: Record<string, number> = {};
+
 // Store reasoning blocks by assistant message content (for multi-turn thinking preservation)
 // Key: hash of message content, Value: { reasoning, reasoning_details }
 const reasoningStore = new Map<string, { reasoning?: string; reasoning_details?: any[] }>();
@@ -136,6 +141,8 @@ export function resetRunningCost(): void {
     // Reset tool usage
     for (const key of Object.keys(toolUsage)) delete toolUsage[key];
     for (const key of Object.keys(failedToolUsage)) delete failedToolUsage[key];
+    for (const key of Object.keys(mcpToolUsage)) delete mcpToolUsage[key];
+    for (const key of Object.keys(mcpFailedToolUsage)) delete mcpFailedToolUsage[key];
 }
 
 /**
@@ -149,12 +156,36 @@ export function recordToolCall(toolName: string, failed: boolean = false): void 
 }
 
 /**
- * Get tool usage stats
+ * Record an MCP tool call (called directly from the MCP tool wrapper).
+ * Uses a separate map that is merged into stats via Math.max so that
+ * calls are never double-counted even if processChunk also records them.
+ */
+export function recordMCPToolCall(toolName: string, failed: boolean = false): void {
+    mcpToolUsage[toolName] = (mcpToolUsage[toolName] || 0) + 1;
+    if (failed) {
+        mcpFailedToolUsage[toolName] = (mcpFailedToolUsage[toolName] || 0) + 1;
+    }
+}
+
+/**
+ * Get tool usage stats.
+ * Merges MCP-wrapper counts with stream-based counts using Math.max
+ * so that calls recorded by both paths are never double-counted.
  */
 export function getToolUsageStats(): { toolUsage: Record<string, number>; failedToolUsage: Record<string, number>; totalCalls: number; totalFailed: number } {
-    const totalCalls = Object.values(toolUsage).reduce((a, b) => a + b, 0);
-    const totalFailed = Object.values(failedToolUsage).reduce((a, b) => a + b, 0);
-    return { toolUsage: { ...toolUsage }, failedToolUsage: { ...failedToolUsage }, totalCalls, totalFailed };
+    const merged: Record<string, number> = { ...toolUsage };
+    for (const [name, count] of Object.entries(mcpToolUsage)) {
+        merged[name] = Math.max(merged[name] || 0, count);
+    }
+
+    const mergedFailed: Record<string, number> = { ...failedToolUsage };
+    for (const [name, count] of Object.entries(mcpFailedToolUsage)) {
+        mergedFailed[name] = Math.max(mergedFailed[name] || 0, count);
+    }
+
+    const totalCalls = Object.values(merged).reduce((a, b) => a + b, 0);
+    const totalFailed = Object.values(mergedFailed).reduce((a, b) => a + b, 0);
+    return { toolUsage: merged, failedToolUsage: mergedFailed, totalCalls, totalFailed };
 }
 
 /**
