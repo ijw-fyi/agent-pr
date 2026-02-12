@@ -152,14 +152,6 @@ async function runCommentReplyMode(
     console.log(`Processing comment reply for ${owner}/${repo}#${prNumber}`);
     console.log(`Comment ID: ${commentId}`);
 
-    // Add eyes reaction immediately to show we're processing
-    try {
-        await addReactionToReviewComment(owner, repo, commentId, "eyes");
-        console.log("Added 👀 reaction to comment");
-    } catch (error) {
-        console.warn("Could not add eyes reaction:", error);
-    }
-
     // Initialize MCP clients and add their tools
     await initMCPClients();
     const mcpTools = await getMCPTools();
@@ -190,6 +182,14 @@ async function runCommentReplyMode(
     if (!originalComment?.isBot && !isSlashCommand) {
         console.log("⏭️ Skipping: original comment was not made by the bot and no slash command found");
         return;
+    }
+
+    // Add eyes reaction to show we're processing (after skip check to avoid reacting to ignored comments)
+    try {
+        await addReactionToReviewComment(owner, repo, commentId, "eyes");
+        console.log("Added 👀 reaction to comment");
+    } catch (error) {
+        console.warn("Could not add eyes reaction:", error);
     }
 
     // Parse overrides (--model, --budget, etc.) from the slash command comment.
