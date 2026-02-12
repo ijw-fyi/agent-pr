@@ -490,6 +490,7 @@ async function dismissPreviousReviews(
             owner,
             repo,
             pull_number: prNumber,
+            per_page: 100,
         });
 
         // Find reviews by the bot that are APPROVED or CHANGES_REQUESTED
@@ -499,19 +500,30 @@ async function dismissPreviousReviews(
                 (review.state === "APPROVED" || review.state === "CHANGES_REQUESTED")
         );
 
-        // Dismiss each review
+        if (reviewsToDismiss.length === 0) {
+            console.log(`No previous APPROVED/CHANGES_REQUESTED reviews found for ${botLogin}`);
+            return;
+        }
+
+        // Dismiss each review using GraphQL (more reliable than REST dismissReview)
         for (const review of reviewsToDismiss) {
             try {
-                await octokit.rest.pulls.dismissReview({
-                    owner,
-                    repo,
-                    pull_number: prNumber,
-                    review_id: review.id,
+                await octokit.graphql(`
+                    mutation($reviewId: ID!, $message: String!) {
+                        dismissPullRequestReview(input: {
+                            pullRequestReviewId: $reviewId,
+                            message: $message
+                        }) {
+                            pullRequestReview { state }
+                        }
+                    }
+                `, {
+                    reviewId: review.node_id,
                     message: "Superseded by new review",
                 });
                 console.log(`✅ Dismissed previous ${review.state} review #${review.id}`);
             } catch (dismissError) {
-                console.warn(`⚠️ Could not dismiss review #${review.id}:`, dismissError instanceof Error ? dismissError.message : dismissError);
+                console.warn(`⚠️ Could not dismiss review #${review.id} (node_id: ${review.node_id}):`, dismissError instanceof Error ? dismissError.message : dismissError);
             }
         }
     } catch (error) {
@@ -533,6 +545,7 @@ export async function submitPRReview(
     commitId?: string
 ): Promise<void> {
     // If submitting a COMMENT review, dismiss any previous approvals/change requests
+    // since a COMMENT review doesn't clear a prior approval or rejection on its own.
     if (event === "COMMENT") {
         await dismissPreviousReviews(owner, repo, prNumber);
     }
