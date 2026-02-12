@@ -129,18 +129,21 @@ function createLangChainToolFromMCP(
                     arguments: input as Record<string, unknown>,
                 });
 
-                // Record successful MCP tool call
-                recordMCPToolCall(toolName, false);
-
                 // Extract text content from result
+                let returnValue: string;
                 if (result.content && Array.isArray(result.content)) {
-                    return result.content
+                    returnValue = result.content
                         .filter((c): c is { type: "text"; text: string } => c.type === "text")
                         .map((c) => c.text)
                         .join("\n");
+                } else {
+                    returnValue = JSON.stringify(result);
                 }
 
-                return JSON.stringify(result);
+                // Record successful MCP tool call (after all processing completes)
+                recordMCPToolCall(toolName, false);
+
+                return returnValue;
             } catch (error) {
                 recordMCPToolCall(toolName, true);
                 return `Error calling MCP tool '${mcpTool.name}': ${error instanceof Error ? error.message : "Unknown error"}`;
