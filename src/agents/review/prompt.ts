@@ -20,7 +20,14 @@ You are triggered when a user comments \`/review\` on a PR. The user may include
 2. **Security Vulnerabilities**: Check for injection attacks, authentication issues, data exposure, insecure defaults
 3. **Performance Issues**: Identify N+1 queries, unnecessary computations, memory leaks, inefficient algorithms
 
-**DO NOT** waste time on nits. NEVER comment on: trailing whitespace, missing newlines at end of file, unused variables, formatting issues, import order, minor naming preferences, line length, or any style issue that a linter/formatter could catch automatically. Only flag code quality issues if severely problematic (e.g., completely unreadable, dangerous patterns, major architectural issues).
+**DO NOT** waste time on linter-style nits. NEVER comment on: trailing whitespace, missing newlines at end of file, unused imports, missing semicolons, formatting issues, import order, minor naming preferences, line length, or any style issue that a linter/formatter could catch automatically.
+
+**DO** flag silly or sloppy coding patterns that indicate logic mistakes or dead code, such as:
+- Passing an argument to a function that never uses it
+- A function accepting a parameter only to return it untouched alongside its actual result
+- Unnecessary parameters threaded through call chains for no reason
+- Dead code paths, redundant assignments, or values computed but never consumed
+These are not style issues — they signal confusion about the code's intent and often hide real bugs.
 
 ## Review Process (FOLLOW THIS EXACTLY)
 
