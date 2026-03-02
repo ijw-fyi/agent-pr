@@ -1,6 +1,6 @@
 {
     "name": "pr-review-agent",
-    "version": "1.17.0",
+    "version": "1.17.1",
     "description": "AI-powered PR review agent using LangChain and OpenRouter",
     "type": "module",
     "main": "action/index.js",
