@@ -243,6 +243,10 @@ async function getPRCommits(
         per_page: 100,
     });
 
+    if (data.length === 100) {
+        console.warn(`PR #${prNumber} has 100+ commits — only showing first 100`);
+    }
+
     return data.map((commit) => ({
         sha: commit.sha,
         message: commit.commit.message,
