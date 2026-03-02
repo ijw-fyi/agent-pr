@@ -87,6 +87,7 @@ When you are satisfied, submit your review using submit_review.
 - **find_references** — like grep but syntax-aware (excludes comments/strings). Use for "where is X used?" questions.
 - **get_file_outline** — lists all symbols in a file with their line ranges (e.g., \`[fn:L47-89] myFunction\`). Use this to discover what's in a file, then read specific ranges with read_files.
 - **list_directory** — explore the project structure. Use when you need to understand how files are organized or find related files (e.g., tests, configs, sibling modules).
+- **get_commit_diff** — fetch the diff for a single commit by SHA. Use when you want to understand what a specific commit changed independently.
 ${webSearchAvailable ? `- **search_web** — look up best practices or documentation. Always cite source URLs.` : ""}
 
 ### Leaving Comments

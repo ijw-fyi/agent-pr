@@ -1,6 +1,7 @@
 import * as github from "@actions/github";
 import type {
     PRContext,
+    PRCommit,
     ReviewComment,
     ConversationComment,
 } from "./types.js";
@@ -35,12 +36,13 @@ export async function gatherPRContext(
     repo: string,
     prNumber: number
 ): Promise<PRContext> {
-    const [pr, diff, reviewComments, issueComments, preferences] = await Promise.all([
+    const [pr, diff, reviewComments, issueComments, preferences, commits] = await Promise.all([
         getPullRequest(owner, repo, prNumber),
         getPRDiff(owner, repo, prNumber),
         getReviewComments(owner, repo, prNumber),
         getConversation(owner, repo, prNumber),
         readPreferences(owner, repo),
+        getPRCommits(owner, repo, prNumber),
     ]);
 
     // Fetch CLAUDE.md from the base branch (not parallel with above since we need pr.base.ref)
@@ -57,6 +59,7 @@ export async function gatherPRContext(
         baseBranch: pr.base.ref,
         headSha: pr.head.sha,
         baseSha: pr.base.sha,
+        commits,
         diff,
         existingComments: reviewComments,
         conversation: issueComments,
@@ -223,6 +226,53 @@ async function getConversation(
         body: comment.body || "",
         createdAt: comment.created_at,
     }));
+}
+
+/**
+ * Get the list of commits in a PR
+ */
+async function getPRCommits(
+    owner: string,
+    repo: string,
+    prNumber: number
+): Promise<PRCommit[]> {
+    const { data } = await octokit.rest.pulls.listCommits({
+        owner,
+        repo,
+        pull_number: prNumber,
+        per_page: 100,
+    });
+
+    if (data.length === 100) {
+        console.warn(`PR #${prNumber} has 100+ commits — only showing first 100`);
+    }
+
+    return data.map((commit) => ({
+        sha: commit.sha,
+        message: commit.commit.message,
+        author: commit.author?.login || commit.commit.author?.name || "unknown",
+        date: commit.commit.author?.date || "",
+    }));
+}
+
+/**
+ * Get the diff for a specific commit
+ */
+export async function getCommitDiff(
+    owner: string,
+    repo: string,
+    commitSha: string
+): Promise<string> {
+    const { data } = await octokit.rest.repos.getCommit({
+        owner,
+        repo,
+        ref: commitSha,
+        mediaType: {
+            format: "diff",
+        },
+    });
+    // When requesting diff format, data is returned as a string
+    return data as unknown as string;
 }
 
 /**

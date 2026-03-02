@@ -8,6 +8,7 @@ import { grepTool } from "./grep.js";
 import { fileOutlineTool } from "./file-outline.js";
 import { viewCodeItemTool } from "./view-code-item.js";
 import { findReferencesTool } from "./find-references.js";
+import { getCommitDiffTool } from "./get-commit-diff.js";
 
 /**
  * Get built-in tools available to the agent
@@ -23,6 +24,7 @@ function getBuiltInTools(): StructuredToolInterface[] {
         fileOutlineTool,
         viewCodeItemTool,
         findReferencesTool,
+        getCommitDiffTool,
     ];
 
     // Only include web search tool if GEMINI_API_KEY is available

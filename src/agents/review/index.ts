@@ -258,7 +258,16 @@ function buildContextMessage(context: PRContext): string {
 
 ## PR Description
 ${context.description || "(No description provided)"}
+`;
 
+    if (context.commits.length > 0) {
+        message += `
+## Commits (${context.commits.length})
+${context.commits.map((c) => `- \`${c.sha.substring(0, 7)}\` ${c.message.split('\n')[0]} (${c.author})`).join("\n")}
+`;
+    }
+
+    message += `
 ## Changed Files Diff
 \`\`\`diff
 ${truncateDiff(context.diff)}
