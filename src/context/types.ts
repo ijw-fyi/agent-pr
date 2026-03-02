@@ -12,6 +12,8 @@ export interface PRContext {
     baseBranch: string;
     headSha: string;
     baseSha: string;
+    /** Commits included in this PR, in chronological order */
+    commits: PRCommit[];
     diff: string;
     existingComments: ReviewComment[];
     conversation: ConversationComment[];
@@ -42,6 +44,16 @@ export interface ConversationComment {
     author: string;
     body: string;
     createdAt: string;
+}
+
+/**
+ * A commit in the PR
+ */
+export interface PRCommit {
+    sha: string;
+    message: string;
+    author: string;
+    date: string;
 }
 
 /**
