@@ -246,6 +246,25 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
 }
 
 /**
+ * Extract changed file paths from a diff string, excluding lock/binary/artifact files
+ */
+function extractChangedFiles(diff: string): string[] {
+    const files: string[] = [];
+    const parts = diff.split(/(?=^diff --git )/m);
+
+    for (const part of parts) {
+        if (!part.trim()) continue;
+        const headerLine = part.split('\n')[0];
+        const match = headerLine.match(/diff --git a\/(.*?) b\//);
+        if (match && !shouldExcludeFile(match[1])) {
+            files.push(match[1]);
+        }
+    }
+
+    return files;
+}
+
+/**
  * Build the context message for the agent
  */
 function buildContextMessage(context: PRContext): string {
@@ -309,9 +328,17 @@ ${context.conversation.map((c) => `- **${c.author}**:\n\`\`\`\n${c.body}\n\`\`\`
 `;
     }
 
+    const changedFiles = extractChangedFiles(context.diff);
+    if (changedFiles.length > 0) {
+        message += `
+## Changed Files Inventory (${changedFiles.length} files)
+${changedFiles.map((f, i) => `${i + 1}. ${f}`).join("\n")}
+`;
+    }
+
     message += `
 ## Your Task
-Review this pull request. Begin with Phase 1 (Triage) as described in your instructions.
+Review this pull request. This PR changes ${changedFiles.length} file${changedFiles.length !== 1 ? "s" : ""}. You must examine each one. Begin with Phase 1 (Triage) as described in your instructions.
 `;
 
     return message;
