@@ -80,8 +80,12 @@ ${toolsTable || '| (none) | - |'}
             const commitId = process.env.HEAD_SHA;
             await submitPRReview(owner, repo, prNumber, body, reviewEvent, commitId);
 
-            // Add verdict label to the PR
-            await setReviewLabel(owner, repo, prNumber, verdict);
+            // Add verdict label to the PR (non-fatal — review is already submitted)
+            try {
+                await setReviewLabel(owner, repo, prNumber, verdict);
+            } catch (labelError) {
+                console.warn(`⚠️ Failed to set review label (review was submitted successfully):`, labelError);
+            }
 
             return `Review submitted successfully with verdict: ${verdict}`;
         } catch (error) {
