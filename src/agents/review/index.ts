@@ -318,15 +318,20 @@ function buildReviewThreads(comments: ReviewComment[]): { root: ReviewComment; r
 /**
  * Render a review comment thread as a timeline entry
  */
+function indent(text: string, prefix: string): string {
+    return text.split('\n').join(`\n${prefix}`);
+}
+
 function renderThread(thread: { root: ReviewComment; replies: ReviewComment[] }): string {
     const { root, replies } = thread;
     const location = root.line ? `\`${root.path}:${root.line}\`` : `\`${root.path}\``;
-    const resolved = root.isResolved ? " (✅ resolved)" : "";
-    let text = `  **${root.author}**${resolved}: ${root.body}`;
+    const resolved = root.isResolved ? " ✅ resolved" : "";
+    let text = `💬 Review thread on ${location}${resolved}\n`;
+    text += `  **${root.author}**: ${indent(root.body, '  ')}`;
     for (const reply of replies) {
-        text += `\n    ↳ **${reply.author}**: ${reply.body}`;
+        text += `\n    ↳ **${reply.author}**: ${indent(reply.body, '      ')}`;
     }
-    return `💬 Review thread on ${location}:\n${text}`;
+    return text;
 }
 
 /**
@@ -366,7 +371,7 @@ function buildActivityTimeline(context: PRContext): string {
     for (const r of context.reviewSummaries) {
         events.push({
             timestamp: r.submittedAt,
-            render: `📋 **${r.author}** submitted review (${r.state}):\n${r.body}`,
+            render: `📋 **${r.author}** submitted review (${r.state}):\n  ${indent(r.body, '  ')}`,
         });
     }
 
@@ -375,7 +380,7 @@ function buildActivityTimeline(context: PRContext): string {
     // Sort chronologically
     events.sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
 
-    return events.map((e) => `[${formatTimestamp(e.timestamp)}] ${e.render}`).join("\n");
+    return events.map((e) => `[${formatTimestamp(e.timestamp)}] ${e.render}`).join("\n\n");
 }
 
 /**
