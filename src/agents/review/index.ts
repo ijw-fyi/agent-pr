@@ -270,7 +270,14 @@ function extractChangedFiles(diff: string): string[] {
 function formatTimestamp(iso: string): string {
     if (!iso) return "";
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
     return d.toISOString().replace("T", " ").replace(/\.\d+Z$/, "");
+}
+
+function parseTimestamp(iso: string): number {
+    if (!iso) return 0;
+    const t = new Date(iso).getTime();
+    return isNaN(t) ? 0 : t;
 }
 
 /**
@@ -366,7 +373,7 @@ function buildActivityTimeline(context: PRContext): string {
     if (events.length === 0) return "";
 
     // Sort chronologically
-    events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    events.sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
 
     return events.map((e) => `[${formatTimestamp(e.timestamp)}] ${e.render}`).join("\n");
 }
