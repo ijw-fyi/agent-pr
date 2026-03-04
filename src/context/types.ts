@@ -21,6 +21,8 @@ export interface PRContext {
     preferences: string;
     /** Repository guidelines loaded from CLAUDE.md */
     claudeMd: string | null;
+    /** Bot's previous review summaries on this PR */
+    reviewSummaries: ReviewSummary[];
 }
 
 /**
@@ -34,6 +36,7 @@ export interface ReviewComment {
     line: number | null;
     createdAt: string;
     isResolved: boolean;
+    inReplyToId: number | null;
 }
 
 /**
@@ -44,6 +47,16 @@ export interface ConversationComment {
     author: string;
     body: string;
     createdAt: string;
+}
+
+/**
+ * A review summary submitted by the bot
+ */
+export interface ReviewSummary {
+    author: string;
+    body: string;
+    state: string;
+    submittedAt: string;
 }
 
 /**

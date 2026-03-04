@@ -3,6 +3,7 @@ import type {
     PRContext,
     PRCommit,
     ReviewComment,
+    ReviewSummary,
     ConversationComment,
 } from "./types.js";
 import { readPreferences } from "../preferences/index.js";
@@ -36,13 +37,14 @@ export async function gatherPRContext(
     repo: string,
     prNumber: number
 ): Promise<PRContext> {
-    const [pr, diff, reviewComments, issueComments, preferences, commits] = await Promise.all([
+    const [pr, diff, reviewComments, issueComments, preferences, commits, reviewSummaries] = await Promise.all([
         getPullRequest(owner, repo, prNumber),
         getPRDiff(owner, repo, prNumber),
         getReviewComments(owner, repo, prNumber),
         getConversation(owner, repo, prNumber),
         readPreferences(owner, repo),
         getPRCommits(owner, repo, prNumber),
+        getPreviousReviewSummaries(owner, repo, prNumber),
     ]);
 
     // Fetch CLAUDE.md from the base branch (not parallel with above since we need pr.base.ref)
@@ -65,6 +67,7 @@ export async function gatherPRContext(
         conversation: issueComments,
         preferences,
         claudeMd,
+        reviewSummaries,
     };
 }
 
@@ -203,6 +206,7 @@ async function getReviewComments(
         line: comment.line || null,
         createdAt: comment.created_at,
         isResolved: resolvedThreadIds.has(comment.id),
+        inReplyToId: comment.in_reply_to_id || null,
     }));
 }
 
@@ -226,6 +230,39 @@ async function getConversation(
         body: comment.body || "",
         createdAt: comment.created_at,
     }));
+}
+
+/**
+ * Get the bot's previous review summaries on this PR
+ */
+async function getPreviousReviewSummaries(
+    owner: string,
+    repo: string,
+    prNumber: number
+): Promise<ReviewSummary[]> {
+    try {
+        const { data: currentUser } = await octokit.rest.users.getAuthenticated();
+        const botLogin = currentUser.login;
+
+        const reviews = await octokit.paginate(octokit.rest.pulls.listReviews, {
+            owner,
+            repo,
+            pull_number: prNumber,
+            per_page: 100,
+        });
+
+        return reviews
+            .filter((review) => review.user?.login === botLogin && review.body?.trim())
+            .map((review) => ({
+                author: review.user?.login || botLogin,
+                body: review.body!,
+                state: review.state,
+                submittedAt: review.submitted_at || "",
+            }));
+    } catch (error) {
+        console.warn("Failed to fetch previous review summaries:", error instanceof Error ? error.message : error);
+        return [];
+    }
 }
 
 /**
