@@ -393,6 +393,7 @@ function buildContextMessage(context: PRContext): string {
 - **Title**: ${context.title}
 - **Author**: ${context.author}
 - **Branch**: ${context.headBranch} → ${context.baseBranch}
+- **Your Identity**: You are \`${context.botLogin}\`. Comments and reviews by this user in the timeline below are from your previous runs.
 
 ## PR Description
 ${context.description || "(No description provided)"}
