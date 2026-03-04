@@ -23,6 +23,8 @@ export interface PRContext {
     claudeMd: string | null;
     /** Bot's previous review summaries on this PR */
     reviewSummaries: ReviewSummary[];
+    /** The authenticated bot's GitHub login (e.g., "github-actions[bot]") */
+    botLogin: string;
 }
 
 /**

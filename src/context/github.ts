@@ -37,7 +37,7 @@ export async function gatherPRContext(
     repo: string,
     prNumber: number
 ): Promise<PRContext> {
-    const [pr, diff, reviewComments, issueComments, preferences, commits, reviewSummaries] = await Promise.all([
+    const [pr, diff, reviewComments, issueComments, preferences, commits, reviewSummaries, botLogin] = await Promise.all([
         getPullRequest(owner, repo, prNumber),
         getPRDiff(owner, repo, prNumber),
         getReviewComments(owner, repo, prNumber),
@@ -45,6 +45,7 @@ export async function gatherPRContext(
         readPreferences(owner, repo),
         getPRCommits(owner, repo, prNumber),
         getPreviousReviewSummaries(owner, repo, prNumber),
+        getBotLogin(),
     ]);
 
     // Fetch CLAUDE.md from the base branch (not parallel with above since we need pr.base.ref)
@@ -68,6 +69,7 @@ export async function gatherPRContext(
         preferences,
         claudeMd,
         reviewSummaries,
+        botLogin,
     };
 }
 
@@ -230,6 +232,18 @@ async function getConversation(
         body: comment.body || "",
         createdAt: comment.created_at,
     }));
+}
+
+/**
+ * Get the authenticated bot's GitHub login
+ */
+async function getBotLogin(): Promise<string> {
+    try {
+        const { data: currentUser } = await octokit.rest.users.getAuthenticated();
+        return currentUser.login;
+    } catch {
+        return "unknown";
+    }
 }
 
 /**
