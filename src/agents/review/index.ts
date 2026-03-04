@@ -3,7 +3,7 @@ import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/
 import { getSystemPrompt } from "./prompt.js";
 import { tools } from "../../tools/index.js";
 import { isWebSearchAvailable } from "../../tools/search-web.js";
-import type { PRContext } from "../../context/types.js";
+import type { PRContext, ReviewComment } from "../../context/types.js";
 import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats } from "../../helpers/cached-model.js";
 import { createPRComment } from "../../context/github.js";
 import { processChunk } from "../../helpers/stream-utils.js";
@@ -265,6 +265,125 @@ function extractChangedFiles(diff: string): string[] {
 }
 
 /**
+ * Format an ISO timestamp as a short datetime string
+ */
+function formatTimestamp(iso: string): string {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toISOString().replace("T", " ").replace(/\.\d+Z$/, "");
+}
+
+function parseTimestamp(iso: string): number {
+    if (!iso) return 0;
+    const t = new Date(iso).getTime();
+    return isNaN(t) ? 0 : t;
+}
+
+/**
+ * Group review comments into threads. Thread roots are comments without inReplyToId.
+ * Returns an array of threads, each with a root comment and its replies sorted chronologically.
+ */
+function buildReviewThreads(comments: ReviewComment[]): { root: ReviewComment; replies: ReviewComment[] }[] {
+    const rootMap = new Map<number, { root: ReviewComment; replies: ReviewComment[] }>();
+
+    // First pass: identify thread roots
+    for (const c of comments) {
+        if (!c.inReplyToId) {
+            rootMap.set(c.id, { root: c, replies: [] });
+        }
+    }
+
+    // Second pass: attach replies to their roots
+    for (const c of comments) {
+        if (c.inReplyToId) {
+            const thread = rootMap.get(c.inReplyToId);
+            if (thread) {
+                thread.replies.push(c);
+            } else {
+                // Reply to a reply or orphaned — treat as standalone root
+                rootMap.set(c.id, { root: c, replies: [] });
+            }
+        }
+    }
+
+    // Sort replies within each thread chronologically
+    for (const thread of rootMap.values()) {
+        thread.replies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    }
+
+    return Array.from(rootMap.values());
+}
+
+/**
+ * Render a review comment thread as a timeline entry
+ */
+function indent(text: string, prefix: string): string {
+    return text.split('\n').join(`\n${prefix}`);
+}
+
+function renderThread(thread: { root: ReviewComment; replies: ReviewComment[] }): string {
+    const { root, replies } = thread;
+    const location = root.line ? `\`${root.path}:${root.line}\`` : `\`${root.path}\``;
+    const resolved = root.isResolved ? " ✅ resolved" : "";
+    let text = `💬 Review thread on ${location}${resolved}\n`;
+    text += `  **${root.author}**: ${indent(root.body, '  ')}`;
+    for (const reply of replies) {
+        text += `\n    ↳ **${reply.author}**: ${indent(reply.body, '      ')}`;
+    }
+    return text;
+}
+
+/**
+ * Build a unified chronological timeline of all PR activity:
+ * commits, conversation comments, review comment threads, and review summaries.
+ */
+function buildActivityTimeline(context: PRContext): string {
+    type TimelineEvent = { timestamp: string; render: string };
+    const events: TimelineEvent[] = [];
+
+    // Commits
+    for (const c of context.commits) {
+        events.push({
+            timestamp: c.date,
+            render: `🔨 **${c.author}** pushed \`${c.sha.substring(0, 7)}\` — ${c.message.split('\n')[0]}`,
+        });
+    }
+
+    // Conversation (issue comments)
+    for (const c of context.conversation) {
+        events.push({
+            timestamp: c.createdAt,
+            render: `💬 **${c.author}**: ${c.body}`,
+        });
+    }
+
+    // Review comment threads (grouped)
+    const threads = buildReviewThreads(context.existingComments);
+    for (const thread of threads) {
+        events.push({
+            timestamp: thread.root.createdAt,
+            render: renderThread(thread),
+        });
+    }
+
+    // Review summaries
+    for (const r of context.reviewSummaries) {
+        events.push({
+            timestamp: r.submittedAt,
+            render: `📋 **${r.author}** submitted review (${r.state}):\n  ${indent(r.body, '  ')}`,
+        });
+    }
+
+    if (events.length === 0) return "";
+
+    // Sort chronologically
+    events.sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
+
+    return events.map((e) => `[${formatTimestamp(e.timestamp)}] ${e.render}`).join("\n\n");
+}
+
+/**
  * Build the context message for the agent
  */
 function buildContextMessage(context: PRContext): string {
@@ -279,13 +398,6 @@ function buildContextMessage(context: PRContext): string {
 ${context.description || "(No description provided)"}
 `;
 
-    if (context.commits.length > 0) {
-        message += `
-## Commits (${context.commits.length})
-${context.commits.map((c) => `- \`${c.sha.substring(0, 7)}\` ${c.message.split('\n')[0]} (${c.author})`).join("\n")}
-`;
-    }
-
     message += `
 ## Changed Files Diff
 \`\`\`diff
@@ -293,10 +405,12 @@ ${truncateDiff(context.diff)}
 \`\`\`
 `;
 
-    if (context.existingComments.length > 0) {
+    // Build unified PR activity timeline
+    const timeline = buildActivityTimeline(context);
+    if (timeline) {
         message += `
-## Existing Review Comments
-${context.existingComments.map((c) => `- ${c.isResolved ? "✅ " : ""}**${c.author}** on \`${c.path}\`:\n\`\`\`\n${c.body}\n\`\`\``).join("\n")}
+## PR Activity Timeline
+${timeline}
 `;
     }
 
@@ -318,13 +432,6 @@ The following preferences have been learned from previous interactions. Please r
 \`\`\`
 ${context.preferences}
 \`\`\`
-`;
-    }
-
-    if (context.conversation.length > 0) {
-        message += `
-## PR Conversation
-${context.conversation.map((c) => `- **${c.author}**:\n\`\`\`\n${c.body}\n\`\`\``).join("\n")}
 `;
     }
 
