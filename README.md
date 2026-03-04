@@ -164,6 +164,18 @@ You can also pass inline overrides:
 /review --budget 10 --max-loc 5000
 ```
 
+### 4. Ask questions or interact on code
+
+Use slash commands on any code line in a PR to start a conversation:
+
+```
+/question why is this function async?
+/pr what does this module do?
+/reply I think we should use a different approach here
+```
+
+Replying to any bot review comment also triggers the comment-reply agent automatically.
+
 ## Command Overrides
 
 Override configuration per-review by passing flags in your `/review` comment. Flags are stripped from the text before the agent sees it.
@@ -181,6 +193,7 @@ Override configuration per-review by passing flags in your `/review` comment. Fl
 |-------|------------|
 | `opus` | `anthropic/claude-opus-4.6` |
 | `sonnet` | `anthropic/claude-sonnet-4.5` |
+| `sonet` | `anthropic/claude-sonnet-4.5` |
 
 Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opus-4.6`).
 
@@ -246,13 +259,36 @@ Preferences are stored per-repository and persist across PRs.
 
 ## Tools Available to the Agent
 
+### Review Mode (`/review`)
+
 | Tool | Description |
 |------|-------------|
 | `read_files` | Read one or more file contents in a single call |
+| `list_directory` | List directory contents with file sizes and line counts |
 | `grep` | Search codebase for patterns (supports regex) |
-| `leave_comment` | Leave inline review comment on PR |
+| `get_file_outline` | Structural outline of a file — functions, classes, methods, and line ranges (uses tree-sitter) |
+| `view_code_item` | View a specific function, class, or method by name (uses tree-sitter) |
+| `find_references` | Find all references to a symbol across the codebase (syntax-aware) |
+| `get_commit_diff` | Fetch the diff for a specific commit by SHA |
+| `leave_comment` | Leave inline review comment on specific lines |
 | `submit_review` | Submit final review summary |
-| `search_web` | Search web for docs (requires `GEMINI_API_KEY`) |
+| `search_web` | Search the web for documentation (requires `GEMINI_API_KEY`) |
+| MCP tools | Any tools from configured MCP servers |
+
+### Comment Reply Mode (`/question`, `/pr`, `/reply`)
+
+| Tool | Description |
+|------|-------------|
+| `reply_to_comment` | Reply to the current code review comment thread |
+| `store_preference` | Store a coding preference extracted from the user's reply |
+| `read_files` | Read one or more file contents in a single call |
+| `list_directory` | List directory contents with file sizes and line counts |
+| `grep` | Search codebase for patterns (supports regex) |
+| `get_file_outline` | Structural outline of a file — functions, classes, methods, and line ranges |
+| `view_code_item` | View a specific function, class, or method by name |
+| `find_references` | Find all references to a symbol across the codebase |
+| `get_commit_diff` | Fetch the diff for a specific commit by SHA |
+| `search_web` | Search the web for documentation (requires `GEMINI_API_KEY`) |
 | MCP tools | Any tools from configured MCP servers |
 
 ## Example Output
@@ -269,7 +305,7 @@ When triggered, the agent will:
 Starting PR Review Agent
 ============================================================
 Model: anthropic/claude-4.5-sonnet
-Tools available: read_files, leave_comment, submit_review, deepwiki_ask
+Tools available: read_files, list_directory, grep, get_file_outline, view_code_item, find_references, get_commit_diff, leave_comment, submit_review, deepwiki_read_wiki_structure, ...
 ============================================================
 
 Step 1
@@ -290,36 +326,6 @@ Step 2
 - GitHub Actions runner with Node.js 24+
 - OpenRouter API key
 - Repository with pull requests enabled
-
-## Roadmap
-
-Planned tools to reduce file reads and improve review efficiency:
-
-### High Priority
-
-| Tool | Description |
-|------|-------------|
-| `get_diff_context` | Expand diff line ranges to show full surrounding context (e.g., the complete function containing a change) |
-| `get_changed_symbols` | Extract just the functions/classes modified in the PR with their full definitions |
-| `get_imports` | Return only import statements for a file to understand dependencies quickly |
-| `get_call_graph` | Show what functions call a given function and what it calls |
-| `get_type_definition` | Retrieve TypeScript interface/type definitions by name |
-
-### Medium Priority
-
-| Tool | Description |
-|------|-------------|
-| `git_blame_lines` | Get blame info for specific lines to understand code history |
-| `find_tests` | Given a source file, find related test files automatically |
-| `batch_read_lines` | Read specific line ranges from multiple files in one call |
-| `get_related_files` | Find files that import or are imported by a given file |
-
-### Nice to Have
-
-| Tool | Description |
-|------|-------------|
-| `semantic_search` | Search code by meaning rather than literal patterns |
-| `get_docstring` | Extract just the documentation/JSDoc for a symbol |
 
 ## License
 
