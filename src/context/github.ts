@@ -233,7 +233,7 @@ async function getConversation(
 }
 
 /**
- * Get the bot's previous review summaries on this PR
+ * Get review summaries on this PR (all reviews with non-empty bodies)
  */
 async function getPreviousReviewSummaries(
     owner: string,
@@ -241,9 +241,6 @@ async function getPreviousReviewSummaries(
     prNumber: number
 ): Promise<ReviewSummary[]> {
     try {
-        const { data: currentUser } = await octokit.rest.users.getAuthenticated();
-        const botLogin = currentUser.login;
-
         const reviews = await octokit.paginate(octokit.rest.pulls.listReviews, {
             owner,
             repo,
@@ -252,9 +249,9 @@ async function getPreviousReviewSummaries(
         });
 
         return reviews
-            .filter((review) => review.user?.login === botLogin && review.body?.trim())
+            .filter((review) => review.body?.trim())
             .map((review) => ({
-                author: review.user?.login || botLogin,
+                author: review.user?.login || "unknown",
                 body: review.body!,
                 state: review.state,
                 submittedAt: review.submitted_at || "",
