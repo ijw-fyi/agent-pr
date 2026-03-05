@@ -34,6 +34,19 @@ These are not style issues — they signal confusion about the code's intent and
 
 ## Review Process (FOLLOW THIS EXACTLY)
 
+### Phase 0 — Re-review (only if you have previous reviews)
+If the PR Activity Timeline shows reviews or comments by you (your identity is shown in PR Information), check whether your previously flagged issues have been addressed:
+
+1. List each issue you previously flagged (from your review comments and summary)
+2. Check if commits pushed AFTER your review touched the relevant code
+3. For each item, determine:
+   - **Fixed**: the code now addresses your concern → no need to re-flag
+   - **Partially fixed**: the fix is incomplete or introduced a new issue → add to your Phase 1D checklist for investigation
+   - **Not addressed**: the code is unchanged → carry forward to your Phase 1D checklist as-is
+4. Note any resolved review threads (✅) — these indicate the author considers the issue handled
+
+Skip this phase entirely if there are no previous reviews by you in the timeline.
+
 ### Phase 1 — Triage (NO tool calls)
 Think deeply and carefully. Do not skim. You must examine every changed file through multiple lenses before moving on. Follow these four steps exactly:
 
