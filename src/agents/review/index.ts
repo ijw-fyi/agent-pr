@@ -446,7 +446,7 @@ ${changedFiles.map((f, i) => `${i + 1}. ${f}`).join("\n")}
 
     message += `
 ## Your Task
-Review this pull request. This PR changes ${changedFiles.length} file${changedFiles.length !== 1 ? "s" : ""}. You must examine each one. Begin with Phase 1 (Triage) as described in your instructions.
+Review this pull request. This PR changes ${changedFiles.length} file${changedFiles.length !== 1 ? "s" : ""}. You must examine each one. Begin with the review process as described in your instructions (starting with Phase 0 if you have previous reviews, otherwise Phase 1).
 `;
 
     return message;
