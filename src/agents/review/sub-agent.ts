@@ -1,5 +1,7 @@
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import type { BaseMessage } from "@langchain/core/messages";
 import { HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import PQueue from "p-queue";
 import { getSubAgentPrompt } from "./sub-agent-prompt.js";
 import { getInvestigationTools } from "../../tools/index.js";
 import { createCachedChatOpenAI, isOverBudget } from "../../helpers/cached-model.js";
@@ -77,7 +79,7 @@ ${filteredDiff}
 \`\`\`
 `;
 
-    const allMessages: any[] = [
+    const allMessages: BaseMessage[] = [
         new SystemMessage(getSubAgentPrompt(item)),
         new HumanMessage(userMessage),
     ];
@@ -136,23 +138,10 @@ export async function runSubAgentsInParallel(
     fullDiff: string,
     maxConcurrency: number = 5,
 ): Promise<(SubAgentFinding | null)[]> {
-    let activeCount = 0;
+    const queue = new PQueue({ concurrency: maxConcurrency });
 
-    async function withSemaphore<T>(fn: () => Promise<T>): Promise<T> {
-        while (activeCount >= maxConcurrency) {
-            await new Promise(r => setTimeout(r, 100));
-        }
-        activeCount++;
-        try {
-            return await fn();
-        } finally {
-            activeCount--;
-        }
-    }
-
-    const promises = items.map((item, idx) =>
-        withSemaphore(async () => {
-            // Check budget before launching
+    const promises = items.map(item =>
+        queue.add(async () => {
             if (isOverBudget()) {
                 console.log(`  ⚠️ Skipping sub-agent #${item.id}: Budget exceeded`);
                 return null;
@@ -168,17 +157,13 @@ export async function runSubAgentsInParallel(
             }
             console.log(`::endgroup::`);
             return result;
+        }).catch(error => {
+            console.error(`  ❌ Sub-agent #${item.id} rejected:`, error);
+            return null;
         })
     );
 
-    const settled = await Promise.allSettled(promises);
-    return settled.map((result, idx) => {
-        if (result.status === 'fulfilled') {
-            return result.value;
-        }
-        console.error(`  ❌ Sub-agent #${items[idx].id} rejected:`, result.reason);
-        return null;
-    });
+    return Promise.all(promises);
 }
 
 /**

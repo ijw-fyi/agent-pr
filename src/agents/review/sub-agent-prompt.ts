@@ -30,7 +30,6 @@ You have been assigned exactly ONE checklist item to investigate:
 - Do NOT leave comments on the PR (you don't have that tool)
 - Do NOT submit a review (you don't have that tool)
 - Do NOT investigate unrelated code or files
-- Do NOT make more than ~5 tool calls total — be efficient
 
 ## Tool Reference
 - **read_files** — read file contents. Use line ranges when you only need a section.

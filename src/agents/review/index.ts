@@ -8,7 +8,7 @@ import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost,
 import { createPRComment } from "../../context/github.js";
 import { processChunk } from "../../helpers/stream-utils.js";
 import { getVersion } from "../../helpers/version.js";
-import { runSubAgentsInParallel, formatFindings, type ChecklistItem } from "./sub-agent.js";
+import { runSubAgentsInParallel, formatFindings, type ChecklistItem, type SubAgentFinding } from "./sub-agent.js";
 
 // Files that should be excluded from diff context and LOC counting
 const LOCK_FILES = ['yarn.lock', 'package-lock.json', 'pnpm-lock.yaml', 'uv.lock', 'poetry.lock', 'Cargo.lock', 'Gemfile.lock', 'composer.lock', 'bun.lockb'];
@@ -111,8 +111,9 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     const budget = getBudget();
     const webSearchAvail = isWebSearchAvailable();
 
-    // Build the initial context message
+    // Build context messages
     const contextMessage = buildContextMessage(context);
+    const subAgentContext = buildSubAgentContextMessage(context);
 
     console.log("::group::🚀 PR Review Agent Starting");
     console.log(`Version: ${getVersion()}`);
@@ -178,74 +179,79 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     }
 
     // ── Stage B: Phase 2 (Parallel Investigation) ──────────────────
+    let findings: (SubAgentFinding | null)[];
+
     if (!isOverBudget()) {
         console.log(`\n🔍 Phase 2: Spawning ${checklist.length} sub-agents for parallel investigation`);
 
-        const findings = await runSubAgentsInParallel(
+        findings = await runSubAgentsInParallel(
             checklist,
-            contextMessage,
+            subAgentContext,
             context.diff,
         );
+    } else {
+        console.log("\n⚠️ Budget exceeded after Phase 1 — skipping investigation, submitting with triage results only");
+        findings = checklist.map(() => null);
+    }
 
-        // ── Stage C: Phase 3 (Submit) ──────────────────────────────
-        console.log("\n📝 Phase 3: Reviewing findings and submitting");
+    // ── Stage C: Phase 3 (Submit) ──────────────────────────────
+    console.log("\n📝 Phase 3: Reviewing findings and submitting");
 
-        const findingsSummary = formatFindings(checklist, findings);
+    const findingsSummary = formatFindings(checklist, findings);
 
-        const phase3Tools = getPhase3Tools();
-        const phase3Model = createCachedChatOpenAI();
-        const phase3Agent = createReactAgent({ llm: phase3Model, tools: phase3Tools });
+    const phase3Tools = getPhase3Tools();
+    const phase3Model = createCachedChatOpenAI();
+    const phase3Agent = createReactAgent({ llm: phase3Model, tools: phase3Tools });
 
-        const phase3Messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
-            new SystemMessage(getPhase3Prompt(webSearchAvail)),
-            new HumanMessage(contextMessage),
-            new HumanMessage(findingsSummary),
-        ];
+    const phase3Messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+        new SystemMessage(getPhase3Prompt(webSearchAvail)),
+        new HumanMessage(contextMessage),
+        new HumanMessage(findingsSummary),
+    ];
 
-        const phase3Abort = new AbortController();
-        let phase3BudgetExceeded = false;
+    const phase3Abort = new AbortController();
+    let phase3BudgetExceeded = false;
 
-        const phase3Stream = await phase3Agent.stream(
-            { messages: phase3Messages },
-            { recursionLimit, signal: phase3Abort.signal }
-        );
+    const phase3Stream = await phase3Agent.stream(
+        { messages: phase3Messages },
+        { recursionLimit, signal: phase3Abort.signal }
+    );
 
-        for await (const chunk of phase3Stream) {
-            stepCount++;
-            processChunk(chunk, stepCount, phase3Messages);
+    for await (const chunk of phase3Stream) {
+        stepCount++;
+        processChunk(chunk, stepCount, phase3Messages);
 
-            if (!phase3BudgetExceeded && isOverBudget()) {
-                phase3BudgetExceeded = true;
-                const cost = getRunningCost();
-                console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) — will wrap up`);
-            }
-
-            if (phase3BudgetExceeded && chunk.tools?.messages) {
-                phase3Messages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. Submit your review immediately with submit_review. Use the findings you already have. Mention in your summary that the review was cut short due to budget constraints."));
-                phase3Abort.abort();
-                break;
-            }
+        if (!phase3BudgetExceeded && isOverBudget()) {
+            phase3BudgetExceeded = true;
+            const cost = getRunningCost();
+            console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) — will wrap up`);
         }
 
-        // Budget wrap-up for Phase 3
-        if (phase3BudgetExceeded) {
-            console.log("\n📝 Creating fresh agent for wrap-up...");
-            const wrapUpModel = createCachedChatOpenAI();
-            const wrapUpAgent = createReactAgent({ llm: wrapUpModel, tools: phase3Tools });
+        if (phase3BudgetExceeded && chunk.tools?.messages) {
+            phase3Messages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. Submit your review immediately with submit_review. Use the findings you already have. Mention in your summary that the review was cut short due to budget constraints."));
+            phase3Abort.abort();
+            break;
+        }
+    }
 
-            try {
-                const wrapUpStream = await wrapUpAgent.stream(
-                    { messages: phase3Messages },
-                    { recursionLimit: 20 }
-                );
-                for await (const chunk of wrapUpStream) {
-                    stepCount++;
-                    processChunk(chunk, stepCount, phase3Messages);
-                }
-                console.log("📝 Wrap-up complete");
-            } catch (error) {
-                console.error("Wrap-up error:", error);
+    // Budget wrap-up for Phase 3
+    if (phase3BudgetExceeded) {
+        console.log("\n📝 Creating fresh agent for wrap-up...");
+        const wrapUpModel = createCachedChatOpenAI();
+        const wrapUpAgent = createReactAgent({ llm: wrapUpModel, tools: phase3Tools });
+
+        try {
+            const wrapUpStream = await wrapUpAgent.stream(
+                { messages: phase3Messages },
+                { recursionLimit: 20 }
+            );
+            for await (const chunk of wrapUpStream) {
+                stepCount++;
+                processChunk(chunk, stepCount, phase3Messages);
             }
+            console.log("📝 Wrap-up complete");
+        } catch (error) {
+            console.error("Wrap-up error:", error);
         }
     }
 
@@ -578,6 +584,46 @@ ${changedFiles.map((f, i) => `${i + 1}. ${f}`).join("\n")}
 ## Your Task
 Review this pull request. This PR changes ${changedFiles.length} file${changedFiles.length !== 1 ? "s" : ""}. You must examine each one. Begin with the review process as described in your instructions (starting with Phase 0 if you have previous reviews, otherwise Phase 1).
 `;
+
+    return message;
+}
+
+/**
+ * Build a lightweight context message for sub-agents (no diff, no task instructions).
+ * Sub-agents receive their filtered diff separately.
+ */
+function buildSubAgentContextMessage(context: PRContext): string {
+    let message = `# Pull Request Context
+
+## PR Information
+- **Title**: ${context.title}
+- **Author**: ${context.author}
+- **Branch**: ${context.headBranch} → ${context.baseBranch}
+`;
+
+    if (context.description) {
+        message += `
+## PR Description
+${context.description}
+`;
+    }
+
+    if (context.claudeMd) {
+        message += `
+## Repository Guidelines (CLAUDE.md)
+\`\`\`
+${context.claudeMd}
+\`\`\`
+`;
+    }
+
+    const changedFiles = extractChangedFiles(context.diff);
+    if (changedFiles.length > 0) {
+        message += `
+## Changed Files Inventory (${changedFiles.length} files)
+${changedFiles.map((f, i) => `${i + 1}. ${f}`).join("\n")}
+`;
+    }
 
     return message;
 }

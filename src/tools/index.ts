@@ -53,18 +53,22 @@ export const builtInTools: StructuredToolInterface[] = getBuiltInTools();
  */
 export let tools: StructuredToolInterface[] = [...builtInTools];
 
+/** MCP tools stored separately so phase-specific functions can include them */
+let mcpTools: StructuredToolInterface[] = [];
+
 /**
  * Add MCP tools to the tools array
  */
-export function addMCPTools(mcpTools: StructuredToolInterface[]): void {
+export function addMCPTools(newMcpTools: StructuredToolInterface[]): void {
+    mcpTools = newMcpTools;
     tools = [...builtInTools, ...mcpTools];
 }
 
 /**
- * Phase 1 tools: read-only investigation + submit_checklist
+ * Phase 1 tools: read-only investigation + submit_checklist + MCP
  */
 export function getPhase1Tools(): StructuredToolInterface[] {
-    const phase1: StructuredToolInterface[] = [...readOnlyTools, submitChecklistTool];
+    const phase1: StructuredToolInterface[] = [...readOnlyTools, submitChecklistTool, ...mcpTools];
     if (isWebSearchAvailable()) {
         phase1.push(searchWebTool);
     }
@@ -72,20 +76,21 @@ export function getPhase1Tools(): StructuredToolInterface[] {
 }
 
 /**
- * Investigation tools for sub-agents: read-only + report_finding
+ * Investigation tools for sub-agents: read-only + report_finding + MCP
  */
 export function getInvestigationTools(): StructuredToolInterface[] {
-    return [...readOnlyTools, reportFindingTool];
+    return [...readOnlyTools, reportFindingTool, ...mcpTools];
 }
 
 /**
- * Phase 3 tools: read-only investigation + leave_comment + submit_review
+ * Phase 3 tools: read-only investigation + leave_comment + submit_review + MCP
  */
 export function getPhase3Tools(): StructuredToolInterface[] {
     const phase3: StructuredToolInterface[] = [
         ...readOnlyTools,
         leaveCommentTool,
         submitReviewTool,
+        ...mcpTools,
     ];
     if (isWebSearchAvailable()) {
         phase3.push(searchWebTool);
