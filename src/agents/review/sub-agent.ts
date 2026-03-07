@@ -89,7 +89,7 @@ ${filteredDiff}
     try {
         const stream = await agent.stream(
             { messages: allMessages },
-            { recursionLimit: 15, signal: abortController.signal }
+            { recursionLimit: 40, signal: abortController.signal }
         );
 
         let stepCount = 0;

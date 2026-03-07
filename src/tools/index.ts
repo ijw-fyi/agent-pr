@@ -65,10 +65,10 @@ export function addMCPTools(newMcpTools: StructuredToolInterface[]): void {
 }
 
 /**
- * Phase 1 tools: read-only investigation + submit_checklist + MCP
+ * Phase 1 tools: read_files + submit_checklist + MCP (no investigation tools)
  */
 export function getPhase1Tools(): StructuredToolInterface[] {
-    const phase1: StructuredToolInterface[] = [...readOnlyTools, submitChecklistTool, ...mcpTools];
+    const phase1: StructuredToolInterface[] = [readFilesTool, submitChecklistTool, ...mcpTools];
     if (isWebSearchAvailable()) {
         phase1.push(searchWebTool);
     }

@@ -89,13 +89,11 @@ Only include genuine concerns — dismiss obvious non-issues here. This checklis
 You MUST call \`submit_checklist\` exactly once at the end. Even if you found no issues, call it with an empty items array.
 
 ### Tool Reference
-- **read_files** — your primary tool. Batch multiple files in ONE call. Use line ranges when you only need a specific section.
-- **grep** — find patterns or text across the codebase. Use padding (e.g., 5) to get surrounding context.
-- **find_references** — like grep but syntax-aware (excludes comments/strings). Use for "where is X used?" questions.
-- **get_file_outline** — lists all symbols in a file with their line ranges.
-- **list_directory** — explore the project structure.
-- **get_commit_diff** — fetch the diff for a single commit by SHA.
+- **read_files** — read full file contents when the diff context is insufficient. Batch multiple files in ONE call. Use line ranges when you only need a specific section. Use sparingly — prefer analyzing the diff directly.
+- **submit_checklist** — submit your final checklist. You MUST call this exactly once.
 ${webSearchAvailable ? `- **search_web** — look up best practices or documentation. Always cite source URLs.` : ""}
+
+Note: Investigation tools (grep, find_references, etc.) are available to the sub-agents that will investigate your checklist items. Your job is triage, not investigation.
 `;
 
 /**
