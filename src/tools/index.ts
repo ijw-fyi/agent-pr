@@ -9,6 +9,19 @@ import { fileOutlineTool } from "./file-outline.js";
 import { viewCodeItemTool } from "./view-code-item.js";
 import { findReferencesTool } from "./find-references.js";
 import { getCommitDiffTool } from "./get-commit-diff.js";
+import { submitChecklistTool } from "./submit-checklist.js";
+import { reportFindingTool } from "./report-finding.js";
+
+/** Read-only investigation tools shared across all phases */
+const readOnlyTools: StructuredToolInterface[] = [
+    readFilesTool,
+    listDirectoryTool,
+    grepTool,
+    fileOutlineTool,
+    viewCodeItemTool,
+    findReferencesTool,
+    getCommitDiffTool,
+];
 
 /**
  * Get built-in tools available to the agent
@@ -16,15 +29,9 @@ import { getCommitDiffTool } from "./get-commit-diff.js";
  */
 function getBuiltInTools(): StructuredToolInterface[] {
     const tools: StructuredToolInterface[] = [
-        readFilesTool,
-        listDirectoryTool,
+        ...readOnlyTools,
         leaveCommentTool,
         submitReviewTool,
-        grepTool,
-        fileOutlineTool,
-        viewCodeItemTool,
-        findReferencesTool,
-        getCommitDiffTool,
     ];
 
     // Only include web search tool if GEMINI_API_KEY is available
@@ -51,4 +58,37 @@ export let tools: StructuredToolInterface[] = [...builtInTools];
  */
 export function addMCPTools(mcpTools: StructuredToolInterface[]): void {
     tools = [...builtInTools, ...mcpTools];
+}
+
+/**
+ * Phase 1 tools: read-only investigation + submit_checklist
+ */
+export function getPhase1Tools(): StructuredToolInterface[] {
+    const phase1: StructuredToolInterface[] = [...readOnlyTools, submitChecklistTool];
+    if (isWebSearchAvailable()) {
+        phase1.push(searchWebTool);
+    }
+    return phase1;
+}
+
+/**
+ * Investigation tools for sub-agents: read-only + report_finding
+ */
+export function getInvestigationTools(): StructuredToolInterface[] {
+    return [...readOnlyTools, reportFindingTool];
+}
+
+/**
+ * Phase 3 tools: read-only investigation + leave_comment + submit_review
+ */
+export function getPhase3Tools(): StructuredToolInterface[] {
+    const phase3: StructuredToolInterface[] = [
+        ...readOnlyTools,
+        leaveCommentTool,
+        submitReviewTool,
+    ];
+    if (isWebSearchAvailable()) {
+        phase3.push(searchWebTool);
+    }
+    return phase3;
 }

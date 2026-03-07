@@ -1,13 +1,14 @@
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
-import { getSystemPrompt } from "./prompt.js";
-import { tools } from "../../tools/index.js";
+import { getSystemPrompt, getPhase1Prompt, getPhase3Prompt } from "./prompt.js";
+import { tools, getPhase1Tools, getPhase3Tools } from "../../tools/index.js";
 import { isWebSearchAvailable } from "../../tools/search-web.js";
 import type { PRContext, ReviewComment } from "../../context/types.js";
 import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats } from "../../helpers/cached-model.js";
 import { createPRComment } from "../../context/github.js";
 import { processChunk } from "../../helpers/stream-utils.js";
 import { getVersion } from "../../helpers/version.js";
+import { runSubAgentsInParallel, formatFindings, type ChecklistItem } from "./sub-agent.js";
 
 // Files that should be excluded from diff context and LOC counting
 const LOCK_FILES = ['yarn.lock', 'package-lock.json', 'pnpm-lock.yaml', 'uv.lock', 'poetry.lock', 'Cargo.lock', 'Gemfile.lock', 'composer.lock', 'bun.lockb'];
@@ -108,16 +109,7 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     // Reset cost tracking for this run
     resetRunningCost();
     const budget = getBudget();
-    console.log(`💵 Budget: $${budget.toFixed(2)}`);
-
-    // Create the model with OpenRouter backend and prompt caching
-    const model = createCachedChatOpenAI();
-
-    // Create the React agent
-    const agent = createReactAgent({
-        llm: model,
-        tools,
-    });
+    const webSearchAvail = isWebSearchAvailable();
 
     // Build the initial context message
     const contextMessage = buildContextMessage(context);
@@ -130,7 +122,6 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     console.log(`Branch: ${context.headBranch} → ${context.baseBranch}`);
     console.log(`Budget: $${budget.toFixed(2)}`);
     console.log(`Recursion Limit: ${recursionLimit}`);
-    console.log(`Tools: ${tools.map(t => t.name).join(", ")}`);
     console.log("::endgroup::");
 
     console.log("\n📝 User Context Message:");
@@ -138,16 +129,166 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     console.log(contextMessage);
     console.log("─".repeat(60));
 
-    // Stream the agent execution
     let stepCount = 0;
-    const allMessages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
-        new SystemMessage(getSystemPrompt(isWebSearchAvailable())),
+
+    // ── Stage A: Phase 1 (Triage) ──────────────────────────────────
+    console.log("\n📋 Phase 1: Triage");
+
+    const phase1Tools = getPhase1Tools();
+    const phase1Model = createCachedChatOpenAI();
+    const phase1Agent = createReactAgent({ llm: phase1Model, tools: phase1Tools });
+
+    const phase1Messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+        new SystemMessage(getPhase1Prompt(webSearchAvail)),
         new HumanMessage(contextMessage),
     ];
 
-    // Use AbortController to allow proper cancellation of the stream
-    const abortController = new AbortController();
+    const phase1Abort = new AbortController();
+    let phase1BudgetExceeded = false;
 
+    const phase1Stream = await phase1Agent.stream(
+        { messages: phase1Messages },
+        { recursionLimit, signal: phase1Abort.signal }
+    );
+
+    for await (const chunk of phase1Stream) {
+        stepCount++;
+        processChunk(chunk, stepCount, phase1Messages);
+
+        if (!phase1BudgetExceeded && isOverBudget()) {
+            phase1BudgetExceeded = true;
+            console.log(`\n⚠️ Budget exceeded during Phase 1 — will submit empty checklist`);
+            phase1Abort.abort();
+            break;
+        }
+    }
+
+    // Extract checklist from submit_checklist ToolMessage
+    const checklist = extractChecklist(phase1Messages);
+    console.log(`\n📋 Checklist: ${checklist.length} item(s)`);
+
+    // ── Fallback: small checklist → single-agent flow ──────────────
+    if (checklist.length <= 2) {
+        console.log(checklist.length === 0
+            ? "\n✅ No issues found in triage — running single-agent for final review"
+            : "\n📋 Small checklist (≤2 items) — falling back to single-agent flow");
+
+        await runSingleAgentFlow(contextMessage, webSearchAvail, recursionLimit, stepCount);
+        return;
+    }
+
+    // ── Stage B: Phase 2 (Parallel Investigation) ──────────────────
+    if (!isOverBudget()) {
+        console.log(`\n🔍 Phase 2: Spawning ${checklist.length} sub-agents for parallel investigation`);
+
+        const findings = await runSubAgentsInParallel(
+            checklist,
+            contextMessage,
+            context.diff,
+        );
+
+        // ── Stage C: Phase 3 (Submit) ──────────────────────────────
+        console.log("\n📝 Phase 3: Reviewing findings and submitting");
+
+        const findingsSummary = formatFindings(checklist, findings);
+
+        const phase3Tools = getPhase3Tools();
+        const phase3Model = createCachedChatOpenAI();
+        const phase3Agent = createReactAgent({ llm: phase3Model, tools: phase3Tools });
+
+        const phase3Messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+            new SystemMessage(getPhase3Prompt(webSearchAvail)),
+            new HumanMessage(contextMessage),
+            new HumanMessage(findingsSummary),
+        ];
+
+        const phase3Abort = new AbortController();
+        let phase3BudgetExceeded = false;
+
+        const phase3Stream = await phase3Agent.stream(
+            { messages: phase3Messages },
+            { recursionLimit, signal: phase3Abort.signal }
+        );
+
+        for await (const chunk of phase3Stream) {
+            stepCount++;
+            processChunk(chunk, stepCount, phase3Messages);
+
+            if (!phase3BudgetExceeded && isOverBudget()) {
+                phase3BudgetExceeded = true;
+                const cost = getRunningCost();
+                console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) — will wrap up`);
+            }
+
+            if (phase3BudgetExceeded && chunk.tools?.messages) {
+                phase3Messages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. Submit your review immediately with submit_review. Use the findings you already have. Mention in your summary that the review was cut short due to budget constraints."));
+                phase3Abort.abort();
+                break;
+            }
+        }
+
+        // Budget wrap-up for Phase 3
+        if (phase3BudgetExceeded) {
+            console.log("\n📝 Creating fresh agent for wrap-up...");
+            const wrapUpModel = createCachedChatOpenAI();
+            const wrapUpAgent = createReactAgent({ llm: wrapUpModel, tools: phase3Tools });
+
+            try {
+                const wrapUpStream = await wrapUpAgent.stream(
+                    { messages: phase3Messages },
+                    { recursionLimit: 20 }
+                );
+                for await (const chunk of wrapUpStream) {
+                    stepCount++;
+                    processChunk(chunk, stepCount, phase3Messages);
+                }
+                console.log("📝 Wrap-up complete");
+            } catch (error) {
+                console.error("Wrap-up error:", error);
+            }
+        }
+    }
+
+    logFinalStats(stepCount, budget);
+}
+
+/**
+ * Extract checklist items from the Phase 1 agent's submit_checklist tool call.
+ */
+function extractChecklist(messages: any[]): ChecklistItem[] {
+    for (const msg of messages) {
+        if (msg instanceof ToolMessage && msg.name === 'submit_checklist') {
+            try {
+                const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                return JSON.parse(content) as ChecklistItem[];
+            } catch {
+                console.error("Failed to parse submit_checklist output");
+            }
+        }
+    }
+    return [];
+}
+
+/**
+ * Fallback: run the original single-agent flow for small PRs (≤2 checklist items).
+ */
+async function runSingleAgentFlow(
+    contextMessage: string,
+    webSearchAvail: boolean,
+    recursionLimit: number | undefined,
+    initialStepCount: number,
+): Promise<void> {
+    const budget = getBudget();
+    const model = createCachedChatOpenAI();
+    const agent = createReactAgent({ llm: model, tools });
+
+    let stepCount = initialStepCount;
+    const allMessages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+        new SystemMessage(getSystemPrompt(webSearchAvail)),
+        new HumanMessage(contextMessage),
+    ];
+
+    const abortController = new AbortController();
     const stream = await agent.stream(
         { messages: allMessages },
         { recursionLimit, signal: abortController.signal }
@@ -158,54 +299,44 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
         stepCount++;
         processChunk(chunk, stepCount, allMessages);
 
-        // Check budget after each step (only flag once)
         if (!budgetExceeded && isOverBudget()) {
             budgetExceeded = true;
             const cost = getRunningCost();
             console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - will wrap up after current tool calls`);
         }
 
-        // If budget exceeded and we just got tool results, inject wrap-up and break
-        // This ensures the LLM sees the budget notice before making more tool calls
         if (budgetExceeded && chunk.tools?.messages) {
-            console.log("\n📝 Injecting wrap-up message after tool results...");
             allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. Finish investigating your current checklist item, then submit your review immediately with submit_review. Skip remaining checklist items. Mention in your summary that the review was cut short due to budget constraints."));
-            // Abort the stream to stop background processing
-            console.log("🛑 Aborting original stream...");
             abortController.abort();
             break;
         }
     }
 
-    // If we broke out due to budget, create a fresh agent for wrap-up
     if (budgetExceeded) {
-        console.log("\n📝 Creating fresh model and agent for wrap-up...");
-
-        // Create a completely fresh model instance to avoid any state issues
         const wrapUpModel = createCachedChatOpenAI();
-
-        // Create a new agent instance with the fresh model
-        const wrapUpAgent = createReactAgent({
-            llm: wrapUpModel,
-            tools,
-        });
+        const wrapUpAgent = createReactAgent({ llm: wrapUpModel, tools });
 
         try {
             const wrapUpStream = await wrapUpAgent.stream(
                 { messages: allMessages },
                 { recursionLimit: 20 }
             );
-
             for await (const chunk of wrapUpStream) {
                 stepCount++;
                 processChunk(chunk, stepCount, allMessages);
             }
-            console.log("📝 Wrap-up complete");
         } catch (error) {
             console.error("Wrap-up error:", error);
         }
     }
 
+    logFinalStats(stepCount, budget);
+}
+
+/**
+ * Log final cost, token, and tool usage statistics.
+ */
+function logFinalStats(stepCount: number, budget: number): void {
     const finalCost = getRunningCost();
     const inputTokens = getRunningInputTokens();
     const outputTokens = getRunningOutputTokens();
@@ -214,7 +345,6 @@ Please consider breaking this PR into smaller, more focused changes for a thorou
     const cacheWriteTokens = getRunningCacheWriteTokens();
     const cacheHitRate = inputTokens > 0 ? (cacheReadTokens / inputTokens * 100) : 0;
 
-    // Get tool usage from global tracking
     const { toolUsage, failedToolUsage, totalCalls: totalToolCalls, totalFailed: totalFailedCalls } = getToolUsageStats();
 
     console.log(`\n${"=".repeat(60)}`);
