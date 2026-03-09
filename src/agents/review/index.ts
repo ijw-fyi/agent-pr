@@ -1,5 +1,6 @@
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { minimatch } from "minimatch";
 import { getSystemPrompt } from "./prompt.js";
 import { tools } from "../../tools/index.js";
 import { isWebSearchAvailable } from "../../tools/search-web.js";
@@ -37,6 +38,38 @@ function shouldExcludeFile(fileName: string): boolean {
 }
 
 /**
+ * Get ignore glob patterns from the PR_AGENT_IGNORE env var
+ */
+function getIgnorePatterns(): string[] {
+    const raw = process.env.PR_AGENT_IGNORE;
+    if (!raw) return [];
+    return raw.split(',').map(p => p.trim()).filter(Boolean);
+}
+
+/**
+ * Check if a file should be ignored based on --ignore glob patterns
+ */
+function shouldIgnoreFile(fileName: string): boolean {
+    const patterns = getIgnorePatterns();
+    if (patterns.length === 0) return false;
+    return patterns.some(pattern => minimatch(fileName, pattern, { matchBase: true }));
+}
+
+/**
+ * Count changed lines in a single file diff section
+ */
+function countFileDiffLines(fileDiff: string): number {
+    let count = 0;
+    for (const line of fileDiff.split('\n')) {
+        if ((line.startsWith('+') && !line.startsWith('+++')) ||
+            (line.startsWith('-') && !line.startsWith('---'))) {
+            count++;
+        }
+    }
+    return count;
+}
+
+/**
  * Filter out excluded files from a diff string
  */
 function filterExcludedFiles(diff: string): string {
@@ -49,7 +82,7 @@ function filterExcludedFiles(diff: string): string {
         const match = headerLine.match(/diff --git a\/(.*?) b\//);
 
         if (match) {
-            return !shouldExcludeFile(match[1]);
+            return !shouldExcludeFile(match[1]) && !shouldIgnoreFile(match[1]);
         }
 
         return true;
@@ -476,6 +509,13 @@ function truncateDiff(diff: string): string {
             // Use shared exclusion logic
             if (shouldExcludeFile(fileName)) {
                 return `${headerLine}\n... (File excluded from diff context)\n`;
+            }
+
+            // Check user-specified ignore patterns
+            if (shouldIgnoreFile(fileName)) {
+                const linesChanged = countFileDiffLines(part);
+                const sizeKB = (Buffer.byteLength(part, 'utf8') / 1024).toFixed(1);
+                return `${headerLine}\n... (File requested to be ignored by the user: ${linesChanged} lines changed, ${sizeKB} KB)\n`;
             }
 
             // Special handling for large JS/TS files that might be bundles

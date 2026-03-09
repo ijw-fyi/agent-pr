@@ -6,11 +6,12 @@
  * the cleaned text with flags stripped.
  */
 
-const FLAG_CONFIG: Record<string, { envVar: string; type: 'number' | 'string' }> = {
+const FLAG_CONFIG: Record<string, { envVar: string; type: 'number' | 'string'; multi?: boolean }> = {
     'budget':          { envVar: 'AGENT_PR_BUDGET', type: 'number' },
     'model':           { envVar: 'MODEL',           type: 'string' },
     'recursion-limit': { envVar: 'RECURSION_LIMIT', type: 'number' },
     'max-loc':         { envVar: 'PR_AGENT_MAX_LOC', type: 'number' },
+    'ignore':          { envVar: 'PR_AGENT_IGNORE',  type: 'string', multi: true },
 };
 
 const MODEL_ALIASES: Record<string, string> = {
@@ -37,30 +38,44 @@ export function parseCommandOverrides(commentBody: string): ParsedOverrides {
     let stripped = commentBody;
 
     for (const [flag, config] of Object.entries(FLAG_CONFIG)) {
-        // Match --flag followed by a quoted value or a non-whitespace token
-        const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'i');
-        const match = stripped.match(pattern);
-
-        if (match) {
-            const value = match[1] ?? match[2] ?? match[3];
-
-            if (config.type === 'number') {
-                const parsed = parseFloat(value);
-                if (isNaN(parsed) || parsed <= 0) {
-                    console.warn(`⚠️ Invalid value for --${flag}: "${value}" (expected positive number, skipping)`);
-                    // Still strip the flag from text
-                    stripped = stripped.replace(match[0], '');
-                    continue;
-                }
-                overrides[config.envVar] = value;
-            } else {
-                overrides[config.envVar] = config.envVar === 'MODEL'
-                    ? (MODEL_ALIASES[value.toLowerCase()] ?? value)
-                    : value;
+        if (config.multi) {
+            // Match all occurrences for multi-value flags (needs g flag for matchAll)
+            const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'gi');
+            const values: string[] = [];
+            for (const match of stripped.matchAll(pattern)) {
+                values.push(match[1] ?? match[2] ?? match[3]);
             }
+            if (values.length > 0) {
+                overrides[config.envVar] = values.join(',');
+                console.log(`🔧 Override: --${flag} [${values.join(', ')}] → ${config.envVar}=${overrides[config.envVar]}`);
+                stripped = stripped.replace(pattern, '');
+            }
+        } else {
+            // Single-value flag (no g flag to preserve capture groups in match())
+            const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'i');
+            const match = stripped.match(pattern);
 
-            console.log(`🔧 Override: --${flag} ${value} → ${config.envVar}=${value}`);
-            stripped = stripped.replace(match[0], '');
+            if (match) {
+                const value = match[1] ?? match[2] ?? match[3];
+
+                if (config.type === 'number') {
+                    const parsed = parseFloat(value);
+                    if (isNaN(parsed) || parsed <= 0) {
+                        console.warn(`⚠️ Invalid value for --${flag}: "${value}" (expected positive number, skipping)`);
+                        // Still strip the flag from text
+                        stripped = stripped.replace(match[0], '');
+                        continue;
+                    }
+                    overrides[config.envVar] = value;
+                } else {
+                    overrides[config.envVar] = config.envVar === 'MODEL'
+                        ? (MODEL_ALIASES[value.toLowerCase()] ?? value)
+                        : value;
+                }
+
+                console.log(`🔧 Override: --${flag} ${value} → ${config.envVar}=${value}`);
+                stripped = stripped.replace(match[0], '');
+            }
         }
     }
 
