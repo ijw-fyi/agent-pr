@@ -162,6 +162,7 @@ You can also pass inline overrides:
 /review --budget 5 focus on security
 /review --model opus check the database migrations
 /review --budget 10 --max-loc 5000
+/review --ignore "*.generated.ts" --ignore "migrations/*"
 ```
 
 ### 4. Ask questions or interact on code
@@ -186,6 +187,7 @@ Override configuration per-review by passing flags in your `/review` comment. Fl
 | `--model <name>` | Override the model | `--model opus` |
 | `--recursion-limit <n>` | Max agent steps | `--recursion-limit 50` |
 | `--max-loc <n>` | Max lines of code to review | `--max-loc 5000` |
+| `--ignore <glob>` | Ignore files matching glob (repeatable) | `--ignore "migrations/*"` |
 
 ### Model Aliases
 
@@ -207,6 +209,7 @@ Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opu
 | `AGENT_PR_BUDGET` | `1.0` | Cost budget in USD (overridable via `--budget`) |
 | `RECURSION_LIMIT` | `100` | Max agent steps (overridable via `--recursion-limit`) |
 | `PR_AGENT_MAX_LOC` | unlimited | Max diff LOC to review (overridable via `--max-loc`) |
+| `PR_AGENT_IGNORE` | - | Comma-separated glob patterns to ignore (overridable via `--ignore`) |
 | `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 | `GEMINI_API_KEY` | - | Enables web search with Gemini |
 
