@@ -38,11 +38,9 @@ export function parseCommandOverrides(commentBody: string): ParsedOverrides {
     let stripped = commentBody;
 
     for (const [flag, config] of Object.entries(FLAG_CONFIG)) {
-        // Match --flag followed by a quoted value or a non-whitespace token
-        const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'gi');
-
         if (config.multi) {
-            // Collect all occurrences for multi-value flags
+            // Match all occurrences for multi-value flags (needs g flag for matchAll)
+            const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'gi');
             const values: string[] = [];
             for (const match of stripped.matchAll(pattern)) {
                 values.push(match[1] ?? match[2] ?? match[3]);
@@ -53,6 +51,8 @@ export function parseCommandOverrides(commentBody: string): ParsedOverrides {
                 stripped = stripped.replace(pattern, '');
             }
         } else {
+            // Single-value flag (no g flag to preserve capture groups in match())
+            const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'i');
             const match = stripped.match(pattern);
 
             if (match) {
