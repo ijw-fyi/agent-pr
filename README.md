@@ -1,3 +1,4 @@
+![banner](https://github.com/user-attachments/assets/8c1980e2-32a7-46fc-b0b4-176106d4a639)
 # 🤖 PR Review Agent
 
 AI-powered GitHub Action that reviews pull requests using an agentic loop. Triggered by commenting `/review` on any PR.
