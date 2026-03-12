@@ -631,9 +631,34 @@ async function dismissPreviousReviews(
 }
 
 /**
+ * Check if a review with the given body was recently created on this PR.
+ * Used to avoid posting a duplicate comment when createReview throws
+ * but the review was actually created server-side.
+ */
+async function wasReviewCreated(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    expectedBody: string
+): Promise<boolean> {
+    try {
+        const { data: reviews } = await octokit.rest.pulls.listReviews({
+            owner,
+            repo,
+            pull_number: prNumber,
+            per_page: 5,
+        });
+        return reviews.some((r) => r.body === expectedBody);
+    } catch {
+        // If we can't verify, err on the side of not posting a duplicate
+        return true;
+    }
+}
+
+/**
  * Submit a PR review with approval, request changes, or comment
  * This creates an actual GitHub review (not just a comment)
- * Falls back to a regular comment if the review fails (e.g., can't approve own PR)
+ * Falls back to a regular comment if the review fails and wasn't created server-side
  */
 export async function submitPRReview(
     owner: string,
@@ -665,8 +690,18 @@ export async function submitPRReview(
     try {
         await octokit.rest.pulls.createReview(params);
     } catch (error) {
-        // If review fails (e.g., can't approve own PR), fall back to a regular comment
-        console.warn(`⚠️ Could not submit review as ${event}, falling back to comment:`, error instanceof Error ? error.message : error);
-        await createPRComment(owner, repo, prNumber, body);
+        console.warn(
+            `⚠️ Could not submit review as ${event}:`,
+            error instanceof Error ? error.message : error
+        );
+
+        // Check if the review was actually created despite the error
+        const reviewCreated = await wasReviewCreated(owner, repo, prNumber, body);
+        if (!reviewCreated) {
+            console.warn(`⚠️ Review was not created, falling back to comment`);
+            await createPRComment(owner, repo, prNumber, body);
+        } else {
+            console.warn(`⚠️ Review was created despite the error — skipping fallback comment`);
+        }
     }
 }
