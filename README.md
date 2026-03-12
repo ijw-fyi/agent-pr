@@ -203,8 +203,8 @@ Override configuration per-review by passing flags in your `/review` comment. Fl
 | Alias | Resolves to |
 |-------|------------|
 | `opus` | `anthropic/claude-opus-4.6` |
-| `sonnet` | `anthropic/claude-opus-4.6` |
-| `sonet` | `anthropic/claude-opus-4.6` |
+| `sonnet` | `anthropic/claude-sonnet-4.5` |
+| `sonet` | `anthropic/claude-sonnet-4.5` |
 
 Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opus-4.6`).
 
