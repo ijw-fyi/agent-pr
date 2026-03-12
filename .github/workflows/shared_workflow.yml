@@ -94,6 +94,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-opus-4.6' }}
           MCP_CONFIG: ${{ vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
+          AGENT_PR_BUDGET: ${{ vars.AGENT_PR_BUDGET || '2' }}
           ACTION_MODE: comment-reply
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_OWNER: ${{ github.repository_owner }}
