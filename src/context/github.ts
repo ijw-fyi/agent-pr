@@ -646,9 +646,10 @@ async function wasReviewCreated(
             owner,
             repo,
             pull_number: prNumber,
-            per_page: 5,
+            per_page: 100,
         });
-        return reviews.some((r) => r.body === expectedBody);
+        // API returns oldest-first; check the most recent reviews
+        return reviews.slice(-5).some((r) => r.body === expectedBody);
     } catch {
         // If we can't verify, err on the side of not posting a duplicate
         return true;
