@@ -38,7 +38,8 @@ jobs:
     secrets: inherit
 ```
 
-#### Full control 
+<details>
+<summary><strong>Full control</strong> (click to expand)</summary>
 
 ```yaml
 name: PR Review
@@ -54,12 +55,12 @@ jobs:
     # Only run on PR comments that start with /review
     if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/review')
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: read
       pull-requests: write
       issues: write
-    
+
     steps:
       - name: Get PR details
         id: pr
@@ -74,13 +75,13 @@ jobs:
             core.setOutput('head_sha', pr.data.head.sha);
             core.setOutput('base_sha', pr.data.base.sha);
             return pr.data;
-      
+
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.pr.outputs.head_sha }}
           fetch-depth: 0
-      
+
       - name: Run PR Review Agent
         uses: ijw-fyi/agent-pr@master
         env:
@@ -101,11 +102,11 @@ jobs:
     # Run when someone replies to a review comment (not the initial /review command)
     if: github.event_name == 'pull_request_review_comment' && github.event.action == 'created'
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: write  # Needed to create/update __agent_pr__ branch
       pull-requests: write  # Needed to leave notification comment
-    
+
     steps:
       - name: Get PR details
         id: pr
@@ -119,12 +120,12 @@ jobs:
             });
             core.setOutput('head_sha', pr.data.head.sha);
             return pr.data;
-      
+
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.pr.outputs.head_sha }}
-      
+
       - name: Run Comment Reply Agent
         uses: ijw-fyi/agent-pr@master
         env:
@@ -140,6 +141,8 @@ jobs:
           COMMENT_ID: ${{ github.event.comment.id }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
 ```
+
+</details>
 
 ### 2. Add secrets to your repository or organization (For ORG level, this is a one time step)
 
