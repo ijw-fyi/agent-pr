@@ -17,17 +17,15 @@ AI-powered GitHub Action that reviews pull requests using an agentic loop. Trigg
 
 Create `.github/workflows/pr-review.yml`:
 
-#### Using shared workflows (recommended)
+#### Using shared workflow (recommended)
 ```yaml
 name: PR Review
 
 on:
   issue_comment:
-    types: [created, edited]
+    types: [created]
   pull_request_review_comment:
-    types: [created, edited]
-  pull_request:
-    types: [opened, synchronize, reopened]
+    types: [created]
 
 permissions:
   contents: write
@@ -36,7 +34,7 @@ permissions:
 
 jobs:
   call-review:
-    uses: ijw-fyi/.github-workflows/.github/workflows/pr_review.yml@main
+    uses: ijw-fyi/agent-pr/.github/workflows/shared_workflow.yml@master
     secrets: inherit
 ```
 
@@ -89,7 +87,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
+          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-opus-4.6' }}
           MCP_CONFIG: ${{ vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
           ACTION_MODE: review
           PR_NUMBER: ${{ github.event.issue.number }}
@@ -133,7 +131,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
+          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-opus-4.6' }}
           MCP_CONFIG: ${{ vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
           ACTION_MODE: comment-reply
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -143,14 +141,25 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
 ```
 
-### 2. Add secrets to your repository (Handled at ORG level, SKIP)
+### 2. Add secrets to your repository or organization (For ORG level, this is a one time step)
 
 Go to **Settings → Secrets and variables → Actions**:
+
+**Secrets:**
 
 | Secret | Required | Description |
 |--------|----------|-------------|
 | `OPENROUTER_KEY` | ✅ Yes | Your [OpenRouter](https://openrouter.ai/) API key |
 | `GEMINI_API_KEY` | ❌ No | Enables web search tool (Google AI) |
+
+**Variables** (Settings → Secrets and variables → Actions → Variables tab):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PR_REVIEW_MODEL` | `anthropic/claude-opus-4.6` | OpenRouter model identifier |
+| `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
+| `PR_AGENT_MAX_LOC` | `2000` | Max diff lines of code to review |
+| `AGENT_PR_BUDGET` | `2` | Cost budget in USD |
 
 ### 3. Trigger a review
 
@@ -194,8 +203,8 @@ Override configuration per-review by passing flags in your `/review` comment. Fl
 | Alias | Resolves to |
 |-------|------------|
 | `opus` | `anthropic/claude-opus-4.6` |
-| `sonnet` | `anthropic/claude-sonnet-4.5` |
-| `sonet` | `anthropic/claude-sonnet-4.5` |
+| `sonnet` | `anthropic/claude-opus-4.6` |
+| `sonet` | `anthropic/claude-opus-4.6` |
 
 Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opus-4.6`).
 
@@ -205,7 +214,7 @@ Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opu
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MODEL` | `anthropic/claude-4.5-sonnet` | OpenRouter model identifier (overridable via `--model`) |
+| `MODEL` | `anthropic/claude-opus-4.6` | OpenRouter model identifier (overridable via `--model`) |
 | `AGENT_PR_BUDGET` | `1.0` | Cost budget in USD (overridable via `--budget`) |
 | `RECURSION_LIMIT` | `100` | Max agent steps (overridable via `--recursion-limit`) |
 | `PR_AGENT_MAX_LOC` | unlimited | Max diff LOC to review (overridable via `--max-loc`) |
@@ -215,10 +224,12 @@ Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opu
 
 ### Model Selection
 
+The default model is `anthropic/claude-opus-4.6`. We switched from Sonnet to Opus after finding that Opus produced significantly fewer false positives, used fewer tokens and agent steps to explore the codebase and reach the same conclusions, and required fewer re-runs — making it cheaper overall despite the higher per-token cost.
+
 Any model available on [OpenRouter](https://openrouter.ai/models) works. Examples:
 
 ```yaml
-MODEL: 'anthropic/claude-4.5-sonnet'  # Default, great for code
+MODEL: 'anthropic/claude-opus-4.6'  # Default — fewer false positives, cheaper overall
 ```
 
 ### MCP Servers
@@ -246,6 +257,8 @@ The agent focuses on **significant issues only**:
 - ⚡ **Performance Problems** - N+1 queries, memory leaks, inefficient algorithms
 
 It **ignores** minor style issues and pedantic best-practice suggestions.
+
+> **Note:** This is a best-effort AI agent. It may miss issues, produce false positives, or require multiple runs to catch everything. Always use human judgment alongside its output — it's a helpful second pair of eyes, not a replacement for code review.
 
 ## Preference Memory
 
@@ -307,7 +320,7 @@ When triggered, the agent will:
 ============================================================
 Starting PR Review Agent
 ============================================================
-Model: anthropic/claude-4.5-sonnet
+Model: anthropic/claude-opus-4.6
 Tools available: read_files, list_directory, grep, get_file_outline, view_code_item, find_references, get_commit_diff, leave_comment, submit_review, deepwiki_read_wiki_structure, ...
 ============================================================
 
