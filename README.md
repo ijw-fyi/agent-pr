@@ -155,14 +155,26 @@ Go to **Settings → Secrets and variables → Actions**:
 | `OPENROUTER_KEY` | ✅ Yes | Your [OpenRouter](https://openrouter.ai/) API key |
 | `GEMINI_API_KEY` | ❌ No | Enables web search tool (Google AI) |
 
-**Variables** (Settings → Secrets and variables → Actions → Variables tab):
+**Configuration** — set via workflow inputs (`with:`) or repo/org variables (Settings → Variables tab). Inputs take precedence over variables.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PR_REVIEW_MODEL` | `anthropic/claude-opus-4.6` | OpenRouter model identifier |
-| `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
-| `PR_AGENT_MAX_LOC` | `2000` | Max diff lines of code to review |
-| `AGENT_PR_BUDGET` | `2` | Cost budget in USD |
+| Input / Variable | Default | Description |
+|------------------|---------|-------------|
+| `model` / `PR_REVIEW_MODEL` | `anthropic/claude-opus-4.6` | OpenRouter model identifier |
+| `budget` / `AGENT_PR_BUDGET` | `2` | Cost budget in USD |
+| `max_loc` / `PR_AGENT_MAX_LOC` | `2000` | Max diff lines of code to review |
+| `mcp_config` / `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
+
+Example with workflow inputs:
+
+```yaml
+jobs:
+  call-review:
+    uses: ijw-fyi/agent-pr/.github/workflows/shared_workflow.yml@master
+    with:
+      model: "anthropic/claude-sonnet-4.5"
+      budget: "5"
+    secrets: inherit
+```
 
 ### 3. Trigger a review
 

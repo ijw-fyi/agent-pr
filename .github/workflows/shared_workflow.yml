@@ -2,6 +2,23 @@ name: PR Review
 
 on:
   workflow_call:
+    inputs:
+      model:
+        description: 'OpenRouter model identifier'
+        type: string
+        required: false
+      budget:
+        description: 'Cost budget in USD'
+        type: string
+        required: false
+      max_loc:
+        description: 'Max diff lines of code to review'
+        type: string
+        required: false
+      mcp_config:
+        description: 'JSON config for MCP servers'
+        type: string
+        required: false
     secrets:
       OPENROUTER_KEY:
         required: true
@@ -46,10 +63,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-opus-4.6' }}
-          MCP_CONFIG: ${{ vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
-          PR_AGENT_MAX_LOC: ${{ vars.PR_AGENT_MAX_LOC || '2000' }}
-          AGENT_PR_BUDGET: ${{ vars.AGENT_PR_BUDGET || '2' }}
+          MODEL: ${{ inputs.model || vars.PR_REVIEW_MODEL || 'anthropic/claude-opus-4.6' }}
+          MCP_CONFIG: ${{ inputs.mcp_config || vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
+          PR_AGENT_MAX_LOC: ${{ inputs.max_loc || vars.PR_AGENT_MAX_LOC || '2000' }}
+          AGENT_PR_BUDGET: ${{ inputs.budget || vars.AGENT_PR_BUDGET || '2' }}
           ACTION_MODE: review
           PR_NUMBER: ${{ github.event.issue.number }}
           REPO_OWNER: ${{ github.repository_owner }}
@@ -92,9 +109,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-opus-4.6' }}
-          MCP_CONFIG: ${{ vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
-          AGENT_PR_BUDGET: ${{ vars.AGENT_PR_BUDGET || '2' }}
+          MODEL: ${{ inputs.model || vars.PR_REVIEW_MODEL || 'anthropic/claude-opus-4.6' }}
+          MCP_CONFIG: ${{ inputs.mcp_config || vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
+          AGENT_PR_BUDGET: ${{ inputs.budget || vars.AGENT_PR_BUDGET || '2' }}
           ACTION_MODE: comment-reply
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO_OWNER: ${{ github.repository_owner }}
