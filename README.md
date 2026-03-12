@@ -1,3 +1,4 @@
+![banner](https://github.com/user-attachments/assets/8c1980e2-32a7-46fc-b0b4-176106d4a639)
 # 🤖 PR Review Agent
 
 AI-powered GitHub Action that reviews pull requests using an agentic loop. Triggered by commenting `/review` on any PR.
@@ -17,17 +18,15 @@ AI-powered GitHub Action that reviews pull requests using an agentic loop. Trigg
 
 Create `.github/workflows/pr-review.yml`:
 
-#### Using shared workflows (recommended)
+#### Using shared workflow (recommended)
 ```yaml
 name: PR Review
 
 on:
   issue_comment:
-    types: [created, edited]
+    types: [created]
   pull_request_review_comment:
-    types: [created, edited]
-  pull_request:
-    types: [opened, synchronize, reopened]
+    types: [created]
 
 permissions:
   contents: write
@@ -36,11 +35,12 @@ permissions:
 
 jobs:
   call-review:
-    uses: ijw-fyi/.github-workflows/.github/workflows/pr_review.yml@main
+    uses: ijw-fyi/agent-pr/.github/workflows/shared_workflow.yml@master
     secrets: inherit
 ```
 
-#### Full control 
+<details>
+<summary><strong>Full control</strong> (click to expand)</summary>
 
 ```yaml
 name: PR Review
@@ -56,12 +56,12 @@ jobs:
     # Only run on PR comments that start with /review
     if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/review')
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: read
       pull-requests: write
       issues: write
-    
+
     steps:
       - name: Get PR details
         id: pr
@@ -76,20 +76,20 @@ jobs:
             core.setOutput('head_sha', pr.data.head.sha);
             core.setOutput('base_sha', pr.data.base.sha);
             return pr.data;
-      
+
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.pr.outputs.head_sha }}
           fetch-depth: 0
-      
+
       - name: Run PR Review Agent
         uses: ijw-fyi/agent-pr@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
+          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-opus-4.6' }}
           MCP_CONFIG: ${{ vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
           ACTION_MODE: review
           PR_NUMBER: ${{ github.event.issue.number }}
@@ -103,11 +103,11 @@ jobs:
     # Run when someone replies to a review comment (not the initial /review command)
     if: github.event_name == 'pull_request_review_comment' && github.event.action == 'created'
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: write  # Needed to create/update __agent_pr__ branch
       pull-requests: write  # Needed to leave notification comment
-    
+
     steps:
       - name: Get PR details
         id: pr
@@ -121,19 +121,19 @@ jobs:
             });
             core.setOutput('head_sha', pr.data.head.sha);
             return pr.data;
-      
+
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.pr.outputs.head_sha }}
-      
+
       - name: Run Comment Reply Agent
         uses: ijw-fyi/agent-pr@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-4.5-sonnet' }}
+          MODEL: ${{ vars.PR_REVIEW_MODEL || 'anthropic/claude-opus-4.6' }}
           MCP_CONFIG: ${{ vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
           ACTION_MODE: comment-reply
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -143,14 +143,39 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
 ```
 
-### 2. Add secrets to your repository (Handled at ORG level, SKIP)
+</details>
+
+### 2. Add secrets to your repository or organization (For ORG level, this is a one time step)
 
 Go to **Settings → Secrets and variables → Actions**:
+
+**Secrets:**
 
 | Secret | Required | Description |
 |--------|----------|-------------|
 | `OPENROUTER_KEY` | ✅ Yes | Your [OpenRouter](https://openrouter.ai/) API key |
 | `GEMINI_API_KEY` | ❌ No | Enables web search tool (Google AI) |
+
+**Configuration** — set via workflow inputs (`with:`) or repo/org variables (Settings → Variables tab). Inputs take precedence over variables.
+
+| Input / Variable | Default | Description |
+|------------------|---------|-------------|
+| `model` / `PR_REVIEW_MODEL` | `anthropic/claude-opus-4.6` | OpenRouter model identifier |
+| `budget` / `AGENT_PR_BUDGET` | `2` | Cost budget in USD |
+| `max_loc` / `PR_AGENT_MAX_LOC` | `2000` | Max diff lines of code to review |
+| `mcp_config` / `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
+
+Example with workflow inputs:
+
+```yaml
+jobs:
+  call-review:
+    uses: ijw-fyi/agent-pr/.github/workflows/shared_workflow.yml@master
+    with:
+      model: "anthropic/claude-sonnet-4.5"
+      budget: "5"
+    secrets: inherit
+```
 
 ### 3. Trigger a review
 
@@ -205,20 +230,22 @@ Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opu
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MODEL` | `anthropic/claude-4.5-sonnet` | OpenRouter model identifier (overridable via `--model`) |
-| `AGENT_PR_BUDGET` | `1.0` | Cost budget in USD (overridable via `--budget`) |
+| `MODEL` | `anthropic/claude-opus-4.6` | OpenRouter model identifier (overridable via `--model`) |
+| `AGENT_PR_BUDGET` | `2` | Cost budget in USD (overridable via `--budget`) |
 | `RECURSION_LIMIT` | `100` | Max agent steps (overridable via `--recursion-limit`) |
-| `PR_AGENT_MAX_LOC` | unlimited | Max diff LOC to review (overridable via `--max-loc`) |
+| `PR_AGENT_MAX_LOC` | `2000` | Max diff LOC to review (overridable via `--max-loc`) |
 | `PR_AGENT_IGNORE` | - | Comma-separated glob patterns to ignore (overridable via `--ignore`) |
 | `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 | `GEMINI_API_KEY` | - | Enables web search with Gemini |
 
 ### Model Selection
 
+The default model is `anthropic/claude-opus-4.6`. We switched from Sonnet to Opus after finding that Opus produced significantly fewer false positives, used fewer tokens and agent steps to explore the codebase and reach the same conclusions, and required fewer re-runs — making it cheaper overall despite the higher per-token cost.
+
 Any model available on [OpenRouter](https://openrouter.ai/models) works. Examples:
 
 ```yaml
-MODEL: 'anthropic/claude-4.5-sonnet'  # Default, great for code
+MODEL: 'anthropic/claude-opus-4.6'  # Default — fewer false positives, cheaper overall
 ```
 
 ### MCP Servers
@@ -246,6 +273,8 @@ The agent focuses on **significant issues only**:
 - ⚡ **Performance Problems** - N+1 queries, memory leaks, inefficient algorithms
 
 It **ignores** minor style issues and pedantic best-practice suggestions.
+
+> **Note:** This is a best-effort AI agent. It may miss issues, produce false positives, or require multiple runs to catch everything. Always use human judgment alongside its output — it's a helpful second pair of eyes, not a replacement for code review.
 
 ## Preference Memory
 
@@ -307,7 +336,7 @@ When triggered, the agent will:
 ============================================================
 Starting PR Review Agent
 ============================================================
-Model: anthropic/claude-4.5-sonnet
+Model: anthropic/claude-opus-4.6
 Tools available: read_files, list_directory, grep, get_file_outline, view_code_item, find_references, get_commit_diff, leave_comment, submit_review, deepwiki_read_wiki_structure, ...
 ============================================================
 

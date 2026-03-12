@@ -47,7 +47,7 @@
             "id": "model",
             "type": "promptString",
             "description": "Model to use",
-            "default": "anthropic/claude-sonnet-4.5"
+            "default": "anthropic/claude-opus-4.6"
         },
         {
             "id": "budget",

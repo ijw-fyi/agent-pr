@@ -7,9 +7,9 @@ inputs:
     description: 'OpenRouter API key'
     required: true
   model:
-    description: 'Model to use (e.g., anthropic/claude-4.5-sonnet)'
+    description: 'Model to use (e.g., anthropic/claude-opus-4.6)'
     required: true
-    default: 'anthropic/claude-4.5-sonnet'
+    default: 'anthropic/claude-opus-4.6'
   mcp_config:
     description: 'JSON configuration for MCP servers. DeepWiki is included by default.'
     required: false
