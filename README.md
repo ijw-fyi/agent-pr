@@ -218,9 +218,9 @@ Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opu
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MODEL` | `anthropic/claude-opus-4.6` | OpenRouter model identifier (overridable via `--model`) |
-| `AGENT_PR_BUDGET` | `1.0` | Cost budget in USD (overridable via `--budget`) |
+| `AGENT_PR_BUDGET` | `2` | Cost budget in USD (overridable via `--budget`) |
 | `RECURSION_LIMIT` | `100` | Max agent steps (overridable via `--recursion-limit`) |
-| `PR_AGENT_MAX_LOC` | unlimited | Max diff LOC to review (overridable via `--max-loc`) |
+| `PR_AGENT_MAX_LOC` | `2000` | Max diff LOC to review (overridable via `--max-loc`) |
 | `PR_AGENT_IGNORE` | - | Comma-separated glob patterns to ignore (overridable via `--ignore`) |
 | `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 | `GEMINI_API_KEY` | - | Enables web search with Gemini |
