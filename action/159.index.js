@@ -1,8 +1,8 @@
-export const id = 266;
-export const ids = [266];
+export const id = 159;
+export const ids = [159];
 export const modules = {
 
-/***/ 82266:
+/***/ 92159:
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 
@@ -26,18 +26,19 @@ var overrides = __webpack_require__(60923);
 // EXTERNAL MODULE: ./dist/agents/review/index.js + 8 modules
 var review = __webpack_require__(19139);
 ;// CONCATENATED MODULE: ./dist/agents/review/orchestrated/prompt.js
-const SYNTHESIZER_PROMPT = `You are a review synthesizer. Three specialist reviewers have independently analyzed a pull request. Your job is to combine their findings into a single, coherent review summary and submit it.
+const SYNTHESIZER_PROMPT = `You are a review synthesizer. Four specialist reviewers have independently analyzed a pull request. Your job is to combine their findings into a single, coherent review summary and submit it.
 
 ## Input
-You will receive summaries from up to three specialists:
+You will receive summaries from up to four specialists:
+- 🐛 **Bugs** — logic errors, race conditions, null dereferences, off-by-one, edge cases
 - 🔒 **Security** — injection, auth, data exposure, insecure defaults
 - ⚡ **Performance** — N+1 queries, memory leaks, algorithmic complexity, I/O inefficiency
 - 🧹 **Code Quality** — duplicated code, dead code, maintainability, error handling, API design
 
 ## Process
-1. Read all three summaries
+1. Read all four summaries
 2. Draft a unified review body that:
-   - Groups findings by domain (🔒 / ⚡ / 🧹) with the domain emoji prefix
+   - Groups findings by domain (🐛 / 🔒 / ⚡ / 🧹) with the domain emoji prefix
    - Lists each finding with its severity and file location
    - Notes positive observations from any specialist
    - If a specialist found no issues, briefly note that as a positive signal (e.g., "No security concerns identified")
@@ -222,6 +223,120 @@ function shared_createSubAgentTool(name, description, prompt, sharedSystemConten
     });
 }
 //# sourceMappingURL=shared.js.map
+;// CONCATENATED MODULE: ./dist/agents/review/orchestrated/subagents/bugs.js
+/**
+ * Bugs & Logic Errors sub-agent for orchestrated review mode.
+ *
+ * Focuses on: logic errors, null dereferences, race conditions,
+ * off-by-one errors, edge cases, missing returns, state bugs.
+ *
+ * This is the highest-priority sub-agent — finding real bugs
+ * is more valuable than any other review domain.
+ */
+
+const BUGS_PROMPT = `You are a bug-finding specialist reviewing code changes in a pull request. Your job is to find ALL bugs and correctness issues, not just a sample. Finding real bugs is the most valuable thing a code reviewer can do.
+
+## Your Domain
+Focus exclusively on correctness — will this code behave as intended?
+1. **Logic errors** — incorrect conditions, wrong operator (&&/||, </<=, ==/===), inverted boolean logic, wrong variable used, swapped arguments
+2. **Null/undefined** — dereferences without null checks, missing optional chaining, accessing properties on potentially undefined values, incorrect nullish coalescing
+3. **Race conditions** — concurrent access to shared state, TOCTOU (time-of-check-to-time-of-use), async operations that assume ordering, missing awaits, fire-and-forget promises that should be awaited
+4. **Off-by-one** — loop bounds (< vs <=), array indexing, string slicing, pagination (skip/offset), fencepost errors
+5. **Edge cases** — empty arrays/strings, zero/negative numbers, boundary values, unexpected types, division by zero, integer overflow
+6. **Missing returns** — functions that don't return in all branches, early returns that skip cleanup, implicit undefined returns where a value is expected
+7. **State bugs** — stale closures, mutation of shared/frozen objects, incorrect initialization order, state not reset between uses, shallow copies where deep copies are needed
+
+## DO NOT Comment On
+- Code style, naming, formatting — not your domain
+- Performance — the performance specialist handles that
+- Security — the security specialist handles that
+- Dead code, duplication, maintainability — the code quality specialist handles those
+- Theoretical bugs that can't happen given the actual inputs and constraints
+- Issues in code that wasn't changed (unless the changed code breaks it)
+
+Only comment on issues that would cause **incorrect behavior** — wrong results, crashes, data corruption, or silent failures.
+
+## Review Process (FOLLOW THIS EXACTLY)
+
+### Phase 0 — Prior Fixes (only if the Orchestrator Context mentions prior findings)
+If the Orchestrator Context section mentions previously flagged bugs, check whether those issues have been addressed in the current diff. Carry forward unfixed items to your Phase 1 checklist. Skip this phase if no prior findings are mentioned.
+
+### Phase 1 — Triage (NO tool calls)
+Read the diff carefully, focusing on correctness. For EACH changed file:
+- Trace the data flow: what are the inputs, how are they transformed, what are the outputs?
+- Check every condition: is the logic correct? Are the operators right? Are edge cases handled?
+- Check every null/undefined risk: could any variable be null/undefined at this point?
+- Check every loop: are the bounds correct? Could it be off by one?
+- Check async code: are promises awaited? Could operations race?
+- Check state mutations: could shared state be corrupted? Are closures stale?
+
+Then think across files for correctness blast radius:
+- Did a function's contract change (return type, error behavior, null handling)? Are all callers updated correctly?
+- Did a type or interface change? Could callers be passing stale data?
+- Did error handling change? Could errors now go unhandled that were previously caught?
+
+Finally, build a numbered checklist of all suspicious items. For each item, write:
+- What looks suspicious and why
+- The file and approximate line
+- What you need to verify (e.g., "can this be null here?", "is this loop bound correct?")
+
+Only include genuine concerns — dismiss obvious non-issues here. This is your review plan.
+
+### Phase 2 — Investigate
+Work through your checklist one item at a time:
+1. Use tools to confirm or dismiss the issue
+2. **Confirmed** → leave_comment on the relevant line (prefix with "🐛 **Bug:**"), mark the item done
+3. **Not an issue** → mark the item done, move on
+4. **New issue discovered** → add it to your checklist, but finish the current item first
+
+Begin each step with your updated checklist showing progress:
+\`\`\`
+- [x] 1. Null dereference in user loader → confirmed, commented
+- [x] 2. Off-by-one in pagination → investigated, not an issue (0-indexed)
+- [ ] 3. Race condition in cache update
+\`\`\`
+
+**Rules:**
+- **Call tools in parallel.** All investigation tools (read_files, grep, find_references, get_file_outline, list_directory) are read-only. If you need to grep for X AND read file Y, do both in the same turn. Only leave_comment has side effects.
+- **Discover while investigating.** When you read surrounding code to verify one issue, actively scan for OTHER bugs not in your checklist. Add any new findings to the checklist.
+- Do NOT re-read code you have already seen. You have it in context.
+- Do NOT switch focus mid-investigation. Finish the current item, then move on.
+- When you need to read multiple files, batch them in a single read_files call.
+
+### Phase 3 — Summary
+When all checklist items are resolved, provide your structured summary.
+
+**FINDINGS:**
+1. [CRITICAL/HIGH/MEDIUM] Description — file:line
+2. ...
+
+**POSITIVE:**
+- Well-handled edge cases and defensive coding
+
+**NO_ISSUES:** (state this if nothing was found)
+
+## Tool Reference
+- **read_files** — your primary tool. Batch multiple files in ONE call. Use line ranges when you only need a specific section.
+- **grep** — find patterns across the codebase. Use padding (e.g., 5) to get surrounding context.
+- **find_references** — syntax-aware search (excludes comments/strings). Use for "where is X used?" questions.
+- **get_file_outline** — lists all symbols in a file with their line ranges. Use to discover what's in a file, then read specific ranges.
+- **list_directory** — explore the project structure.
+
+## IMPORTANT
+- You MUST do a **full bug sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.
+- Report ANY bug you find, whether or not the orchestrator mentioned it.
+- Do NOT comment on style, performance, security, or code quality (other specialists handle those).
+- Be precise. A false positive bug report wastes the developer's time. Only flag issues you are confident are actual bugs.
+- It is completely OK to find NO issues. If the changes don't touch your domain, say so and move on. Do NOT fabricate or stretch issues to justify your existence.
+`;
+/**
+ * Create the bugs review sub-agent tool.
+ * The orchestrator calls this tool to run a focused bug analysis.
+ */
+function createBugsReviewTool(sharedSystemContent, recursionLimit) {
+    return createSubAgentTool("bugs_review", "Run a specialized bug-finding review on the specified files. The sub-agent will investigate logic errors, null dereferences, race conditions, off-by-one errors, and other correctness issues. It can leave inline comments on issues it finds. Returns a structured summary of findings.", BUGS_PROMPT, sharedSystemContent, recursionLimit);
+}
+//# sourceMappingURL=bugs.js.map
 ;// CONCATENATED MODULE: ./dist/agents/review/orchestrated/subagents/security.js
 /**
  * Security & Safety sub-agent for orchestrated review mode.
@@ -311,7 +426,8 @@ When all checklist items are resolved, provide your structured summary.
 ## IMPORTANT
 - You MUST do a **full security sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.
 - Report ANY security issue you find, whether or not the orchestrator mentioned it.
-- Do NOT comment on non-security matters (style, performance, code quality).
+- Do NOT comment on non-security matters (bugs, style, performance, code quality). A dedicated bugs specialist handles logic errors.
+- It is completely OK to find NO issues. If the changes don't touch your domain, say so and move on. Do NOT fabricate or stretch issues to justify your existence.
 `;
 /**
  * Create the security review sub-agent tool.
@@ -410,7 +526,8 @@ When all checklist items are resolved, provide your structured summary.
 ## IMPORTANT
 - You MUST do a **full performance sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.
 - Report ANY performance issue you find, whether or not the orchestrator mentioned it.
-- Do NOT comment on non-performance matters (style, security, code quality).
+- Do NOT comment on non-performance matters (bugs, style, security, code quality). A dedicated bugs specialist handles logic errors.
+- It is completely OK to find NO issues. If the changes don't touch your domain, say so and move on. Do NOT fabricate or stretch issues to justify your existence.
 `;
 /**
  * Create the performance review sub-agent tool.
@@ -534,8 +651,9 @@ When all checklist items are resolved, provide your structured summary.
 ## IMPORTANT
 - You MUST do a **full code quality sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.
 - Report ANY substantive code quality issue you find, whether or not the orchestrator mentioned it.
-- Do NOT comment on security or performance (other specialists handle those).
+- Do NOT comment on bugs, security, or performance (other specialists handle those).
 - Do NOT comment on linter-catchable issues (see exclusion list above).
+- It is completely OK to find NO issues. If the changes don't touch your domain, say so and move on. Do NOT fabricate or stretch issues to justify your existence.
 `;
 /**
  * Create the code quality review sub-agent tool.
@@ -549,14 +667,14 @@ function createCodeQualityReviewTool(sharedSystemContent, recursionLimit) {
 /**
  * Orchestrated review mode.
  *
- * Runs three specialized sub-agents in parallel (security, performance,
- * code quality), then a lightweight synthesizer combines their findings
- * and submits the final review.
+ * Runs four specialized sub-agents (bugs, security, performance, code quality),
+ * then a lightweight synthesizer combines their findings and submits the review.
  *
  * Cache optimization: all sub-agents share an identical SystemMessage[0]
- * containing the diff. Agent 1 starts first to warm the Anthropic prompt
- * cache; agents 2+3 start once the first chunk arrives (cache hit).
+ * containing the diff. The bugs agent starts first to warm the Anthropic
+ * prompt cache; the other three start once the first chunk arrives (cache hit).
  */
+
 
 
 
@@ -611,25 +729,29 @@ async function runOrchestratedReview(context, recursionLimit) {
         console.log(`📝 User instructions: ${userInstructions}`);
     }
     // --- Run sub-agents with staggered start for cache optimization ---
-    // Agent 1 starts immediately and warms the prompt cache.
-    // Agents 2+3 start once agent 1's first chunk arrives (cache hit).
+    // Bugs agent starts first (highest priority) and warms the prompt cache.
+    // Security, performance, and code quality start once the first chunk arrives (cache hit).
     let resolveCacheReady;
     const cacheReady = new Promise(r => { resolveCacheReady = r; });
-    const securityPromise = runSubAgent("security_review", SECURITY_PROMPT, sharedSystemContent, contextHints, changedFiles, effectiveRecursionLimit, () => resolveCacheReady()).catch(err => {
-        resolveCacheReady(); // unblock agents 2+3 even if agent 1 fails
+    const bugsPromise = runSubAgent("bugs_review", BUGS_PROMPT, sharedSystemContent, contextHints, changedFiles, effectiveRecursionLimit, () => resolveCacheReady()).catch(err => {
+        resolveCacheReady(); // unblock other agents even if bugs agent fails
         throw err; // re-throw so Promise.all still rejects
     });
-    // Wait for cache to be warm before starting agents 2+3
+    // Wait for cache to be warm before starting the other agents
     await cacheReady;
-    const [securitySummary, perfSummary, cqSummary] = await Promise.all([
-        securityPromise,
+    const [bugsSummary, securitySummary, perfSummary, cqSummary] = await Promise.all([
+        bugsPromise,
+        runSubAgent("security_review", SECURITY_PROMPT, sharedSystemContent, contextHints, changedFiles, effectiveRecursionLimit),
         runSubAgent("performance_review", PERFORMANCE_PROMPT, sharedSystemContent, contextHints, changedFiles, effectiveRecursionLimit),
         runSubAgent("code_quality_review", CODE_QUALITY_PROMPT, sharedSystemContent, contextHints, changedFiles, effectiveRecursionLimit),
     ]);
     // --- Synthesizer: combine findings and submit review ---
     console.log("\n::group::📝 Synthesizer: combining findings");
     console.log("::endgroup::");
-    const synthesizerMessage = `Here are the findings from the three specialist reviewers:
+    const synthesizerMessage = `Here are the findings from the four specialist reviewers:
+
+## 🐛 Bugs Review
+${bugsSummary}
 
 ## 🔒 Security Review
 ${securitySummary}
