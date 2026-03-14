@@ -10,7 +10,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import { tools } from "../../../../tools/index.js";
 import { getAgentCosts } from "../../../../helpers/cached-model.js";
 import { streamWithBudget } from "../../../../helpers/stream-utils.js";
-import { truncateDiff } from "../../index.js";
+import { truncateDiffPart } from "../../index.js";
 import type { PRContext } from "../../../../context/types.js";
 
 // Sub-agents can leave inline comments but cannot submit the final review
@@ -32,17 +32,11 @@ function filterDiffToFiles(diff: string, files: string[]): string {
     const fileSet = new Set(files);
     const parts = diff.split(/(?=^diff --git )/m);
 
-    const filtered = parts.filter(part => {
+    return parts.filter(part => {
         if (!part.trim()) return true;
-        const headerLine = part.split('\n')[0];
-        const match = headerLine.match(/diff --git a\/(.*?) b\//);
-        if (match) {
-            return fileSet.has(match[1]);
-        }
-        return false;
-    }).join('');
-
-    return truncateDiff(filtered);
+        const match = part.split('\n')[0].match(/diff --git a\/(.*?) b\//);
+        return match ? fileSet.has(match[1]) : false;
+    }).map(truncateDiffPart).join('');
 }
 
 /**

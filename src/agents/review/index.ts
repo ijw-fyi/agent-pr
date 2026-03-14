@@ -361,57 +361,61 @@ Review this pull request. This PR changes ${changedFiles.length} file${changedFi
 /**
  * Truncate diff per file if it's too large
  */
-export function truncateDiff(diff: string): string {
+/**
+ * Truncate a single diff part (one file's diff section).
+ * Handles exclusions, binary files, and size limits.
+ */
+export function truncateDiffPart(part: string): string {
     const MAX_LINES_PER_FILE = 500;
     const MAX_CHARS_PER_FILE = 40000; // avg 80 characters per line
 
-    // Split by "diff --git" at start of line, keeping the delimiter with each part
+    if (!part.trim()) return part;
+
+    // Check for binary files or excluded extensions
+    // Format: diff --git a/path/to/file.ext b/path/to/file.ext
+    const headerLine = part.split('\n')[0];
+    const match = headerLine.match(/diff --git a\/(.*?) b\//);
+
+    if (match) {
+        const fileName = match[1];
+
+        // Use shared exclusion logic
+        if (shouldExcludeFile(fileName)) {
+            return `${headerLine}\n... (File excluded from diff context)\n`;
+        }
+
+        // Check user-specified ignore patterns
+        if (shouldIgnoreFile(fileName)) {
+            const linesChanged = countFileDiffLines(part);
+            const sizeKB = (Buffer.byteLength(part, 'utf8') / 1024).toFixed(1);
+            return `${headerLine}\n... (File requested to be ignored by the user: ${linesChanged} lines changed, ${sizeKB} KB)\n`;
+        }
+
+        // Special handling for large JS/TS files that might be bundles
+        // If it's a JS file and huge, it's likely a bundle we missed
+        if (/\.(js|mjs|cjs|ts|tsx)$/.test(fileName) && part.length > MAX_CHARS_PER_FILE) {
+            return `${headerLine}\n... (Large file excluded from diff context - likely generated or too big to review inline)\n`;
+        }
+    }
+
+    // Also check if the diff itself says "Binary files ... differ"
+    if (part.includes("Binary files") && part.includes("differ")) {
+        return part.split('\n').filter(l => l.startsWith('diff --git') || l.includes('Binary files')).join('\n') + '\n';
+    }
+
+    if (part.length > MAX_CHARS_PER_FILE) {
+        return part.slice(0, MAX_CHARS_PER_FILE) + "\n... (File diff truncated: exceeds 10k chars)\n";
+    }
+
+    const lines = part.split('\n');
+    if (lines.length > MAX_LINES_PER_FILE) {
+        return lines.slice(0, MAX_LINES_PER_FILE).join('\n') + "\n... (File diff truncated: exceeds 500 lines)\n";
+    }
+
+    return part;
+}
+
+export function truncateDiff(diff: string): string {
     const parts = diff.split(/(?=^diff --git )/m);
-
-    return parts.map(part => {
-        if (!part.trim()) return part;
-
-        // Check for binary files or excluded extensions
-        // Format: diff --git a/path/to/file.ext b/path/to/file.ext
-        const headerLine = part.split('\n')[0];
-        const match = headerLine.match(/diff --git a\/(.*?) b\//);
-
-        if (match) {
-            const fileName = match[1];
-
-            // Use shared exclusion logic
-            if (shouldExcludeFile(fileName)) {
-                return `${headerLine}\n... (File excluded from diff context)\n`;
-            }
-
-            // Check user-specified ignore patterns
-            if (shouldIgnoreFile(fileName)) {
-                const linesChanged = countFileDiffLines(part);
-                const sizeKB = (Buffer.byteLength(part, 'utf8') / 1024).toFixed(1);
-                return `${headerLine}\n... (File requested to be ignored by the user: ${linesChanged} lines changed, ${sizeKB} KB)\n`;
-            }
-
-            // Special handling for large JS/TS files that might be bundles
-            // If it's a JS file and huge, it's likely a bundle we missed
-            if (/\.(js|mjs|cjs|ts|tsx)$/.test(fileName) && part.length > MAX_CHARS_PER_FILE) {
-                return `${headerLine}\n... (Large file excluded from diff context - likely generated or too big to review inline)\n`;
-            }
-        }
-
-        // Also check if the diff itself says "Binary files ... differ"
-        if (part.includes("Binary files") && part.includes("differ")) {
-            return part.split('\n').filter(l => l.startsWith('diff --git') || l.includes('Binary files')).join('\n') + '\n';
-        }
-
-        if (part.length > MAX_CHARS_PER_FILE) {
-            return part.slice(0, MAX_CHARS_PER_FILE) + "\n... (File diff truncated: exceeds 10k chars)\n";
-        }
-
-        const lines = part.split('\n');
-        if (lines.length > MAX_LINES_PER_FILE) {
-            return lines.slice(0, MAX_LINES_PER_FILE).join('\n') + "\n... (File diff truncated: exceeds 500 lines)\n";
-        }
-
-        return part;
-    }).join('');
+    return parts.map(truncateDiffPart).join('');
 }
