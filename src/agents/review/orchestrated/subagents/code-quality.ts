@@ -48,7 +48,13 @@ Read the diff carefully through your code quality lens. For EACH changed file, e
 - API design issues (confusing interfaces, leaky abstractions, missing type safety)
 - Code smells (god functions, feature envy, long parameter lists)
 
-Then build a numbered checklist of suspicious items. For each item, write:
+Then think across files for code quality blast radius:
+- Did a function signature, return type, or interface change? Are all callers updated, or are there stale call sites with wrong arguments?
+- Did a type, enum, or constant change? Are all references in sync, or is there now a mismatch?
+- Was code moved or extracted? Did the old location get cleaned up, or is there dead code left behind?
+- Could combining changes from different files introduce duplication? (e.g., similar logic added in two places that should share an abstraction)
+
+Finally, build a numbered checklist of all suspicious items from both steps. For each item, write:
 - What looks suspicious and why
 - The file and approximate line
 - What you need to verify (e.g., "is this logic duplicated from X?", "is this value ever consumed?")

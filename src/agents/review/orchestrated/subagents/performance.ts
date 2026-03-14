@@ -36,7 +36,13 @@ Read the diff carefully through your performance lens. For EACH changed file, ex
 - I/O patterns (sequential where parallel is safe, missing caching, excessive calls)
 - Resource management (unclosed handles, unbounded concurrency, missing timeouts)
 
-Then build a numbered checklist of suspicious items. For each item, write:
+Then think across files for performance-relevant blast radius:
+- Did a function's return type or caching behavior change? Are callers still handling it efficiently, or are they now doing redundant work?
+- Did a query, API call, or I/O operation change? Are consumers still batching/caching correctly, or did the change break an optimization?
+- Did a data structure or algorithm change? Are downstream consumers still using it with the expected complexity?
+- Could combining changes from different files introduce a hot path? (e.g., a new loop + an expensive function call inside it)
+
+Finally, build a numbered checklist of all suspicious items from both steps. For each item, write:
 - What looks suspicious and why
 - The file and approximate line
 - What you need to verify (e.g., "is this query called in a loop?", "does this object get cleaned up?")

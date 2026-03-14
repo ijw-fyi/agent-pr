@@ -36,7 +36,13 @@ Read the diff carefully through your security lens. For EACH changed file, exami
 - Input validation gaps (missing sanitization, type coercion, path traversal)
 - Unsafe patterns (eval, deserialization, prototype pollution)
 
-Then build a numbered checklist of suspicious items. For each item, write:
+Then think across files for security-relevant blast radius:
+- Did an auth/authz function change signature or behavior? Are all callers still passing correct credentials/scopes?
+- Did input validation move or change? Are there callers that relied on the old validation and now pass unsanitized data?
+- Did a security-sensitive config, constant, or permission change? Is it still in sync everywhere it's referenced?
+- Could combining changes from different files open a new attack surface? (e.g., a new endpoint + a relaxed CORS policy)
+
+Finally, build a numbered checklist of all suspicious items from both steps. For each item, write:
 - What looks suspicious and why
 - The file and approximate line
 - What you need to verify (e.g., "is this input sanitized before reaching the query?")
