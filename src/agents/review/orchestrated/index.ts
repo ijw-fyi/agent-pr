@@ -31,18 +31,23 @@ const ORCHESTRATOR_BLOCKED_TOOLS = new Set(["leave_comment", "submit_review"]);
  * Includes: investigation tools (read_files, grep, etc.), sub-agent tools,
  * and submit_review. Excludes leave_comment.
  */
-function getOrchestratorTools(context: PRContext, recursionLimit: number): StructuredToolInterface[] {
-    // Investigation tools (everything except leave_comment and submit_review)
-    const investigationTools = tools.filter(t => !ORCHESTRATOR_BLOCKED_TOOLS.has(t.name));
+/** Investigation tools (everything except leave_comment and submit_review) */
+function getInvestigationTools(): StructuredToolInterface[] {
+    return tools.filter(t => !ORCHESTRATOR_BLOCKED_TOOLS.has(t.name));
+}
 
-    // Sub-agent tools
+/**
+ * Build the full tool set for the orchestrator agent.
+ * Includes: investigation tools, sub-agent tools, and submit_review.
+ */
+function getOrchestratorTools(context: PRContext, recursionLimit: number): StructuredToolInterface[] {
     const subAgentTools = [
         createSecurityReviewTool(context, recursionLimit),
         createPerformanceReviewTool(context, recursionLimit),
         createCodeQualityReviewTool(context, recursionLimit),
     ];
 
-    return [...investigationTools, ...subAgentTools, submitReviewTool];
+    return [...getInvestigationTools(), ...subAgentTools, submitReviewTool];
 }
 
 /**
@@ -92,6 +97,7 @@ export async function runOrchestratedReview(
         messages: allMessages,
         recursionLimit: effectiveRecursionLimit,
         wrapUpMessage: "IMPORTANT BUDGET NOTICE: You are past your budget limit. Submit your review immediately with submit_review using whatever findings you have so far. Mention in your summary that the review was cut short due to budget constraints.",
+        wrapUpTools: [...getInvestigationTools(), submitReviewTool],
     });
 
     logRunStats("Orchestrated review", stepCount);

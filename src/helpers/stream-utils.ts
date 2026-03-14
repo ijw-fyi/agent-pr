@@ -102,6 +102,8 @@ export interface StreamWithBudgetOptions {
     recursionLimit: number;
     /** Budget exceeded wrap-up message injected as HumanMessage */
     wrapUpMessage: string;
+    /** Optional reduced tool set for the wrap-up agent. Defaults to `tools`. */
+    wrapUpTools?: StructuredToolInterface[];
     /** Optional callback on each chunk (e.g., to capture lastAIContent) */
     onChunk?: (chunk: any) => void;
 }
@@ -119,7 +121,7 @@ export interface StreamWithBudgetResult {
  * message and runs a final pass to let the agent finish gracefully.
  */
 export async function streamWithBudget(opts: StreamWithBudgetOptions): Promise<StreamWithBudgetResult> {
-    const { agentName, tools, messages, recursionLimit, wrapUpMessage, onChunk } = opts;
+    const { agentName, tools, messages, recursionLimit, wrapUpMessage, wrapUpTools, onChunk } = opts;
     const budget = getBudget();
     const prefix = `[${agentName}] `;
 
@@ -159,7 +161,7 @@ export async function streamWithBudget(opts: StreamWithBudgetOptions): Promise<S
     if (abortedForBudget) {
         console.log(`\n📝 ${prefix}Running wrap-up pass...`);
         const wrapUpModel = createCachedChatOpenAI(agentName);
-        const wrapUpAgent = createReactAgent({ llm: wrapUpModel, tools });
+        const wrapUpAgent = createReactAgent({ llm: wrapUpModel, tools: wrapUpTools ?? tools });
 
         try {
             const wrapUpStream = await wrapUpAgent.stream(
