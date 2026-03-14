@@ -1,13 +1,12 @@
 /**
  * Orchestrated review mode.
  *
- * Runs three specialized sub-agents in parallel (security, performance,
- * code quality), then a lightweight synthesizer combines their findings
- * and submits the final review.
+ * Runs four specialized sub-agents (bugs, security, performance, code quality),
+ * then a lightweight synthesizer combines their findings and submits the review.
  *
  * Cache optimization: all sub-agents share an identical SystemMessage[0]
- * containing the diff. Agent 1 starts first to warm the Anthropic prompt
- * cache; agents 2+3 start once the first chunk arrives (cache hit).
+ * containing the diff. The bugs agent starts first to warm the Anthropic
+ * prompt cache; the other three start once the first chunk arrives (cache hit).
  */
 
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
@@ -18,6 +17,7 @@ import { getVersion } from "../../../helpers/version.js";
 import { findReviewCommentBody, stripOverrideFlags } from "../../../helpers/overrides.js";
 import { extractChangedFiles } from "../index.js";
 import { SYNTHESIZER_PROMPT } from "./prompt.js";
+import { BUGS_PROMPT } from "./subagents/bugs.js";
 import { SECURITY_PROMPT } from "./subagents/security.js";
 import { PERFORMANCE_PROMPT } from "./subagents/performance.js";
 import { CODE_QUALITY_PROMPT } from "./subagents/code-quality.js";
@@ -74,30 +74,38 @@ export async function runOrchestratedReview(
     }
 
     // --- Run sub-agents with staggered start for cache optimization ---
-    // Agent 1 starts immediately and warms the prompt cache.
-    // Agents 2+3 start once agent 1's first chunk arrives (cache hit).
+    // Bugs agent starts first (highest priority) and warms the prompt cache.
+    // Security, performance, and code quality start once the first chunk arrives (cache hit).
 
     let resolveCacheReady: () => void;
     const cacheReady = new Promise<void>(r => { resolveCacheReady = r; });
 
-    const securityPromise = runSubAgent(
-        "security_review",
-        SECURITY_PROMPT,
+    const bugsPromise = runSubAgent(
+        "bugs_review",
+        BUGS_PROMPT,
         sharedSystemContent,
         contextHints,
         changedFiles,
         effectiveRecursionLimit,
         () => resolveCacheReady!(),
     ).catch(err => {
-        resolveCacheReady!(); // unblock agents 2+3 even if agent 1 fails
+        resolveCacheReady!(); // unblock other agents even if bugs agent fails
         throw err;            // re-throw so Promise.all still rejects
     });
 
-    // Wait for cache to be warm before starting agents 2+3
+    // Wait for cache to be warm before starting the other agents
     await cacheReady;
 
-    const [securitySummary, perfSummary, cqSummary] = await Promise.all([
-        securityPromise,
+    const [bugsSummary, securitySummary, perfSummary, cqSummary] = await Promise.all([
+        bugsPromise,
+        runSubAgent(
+            "security_review",
+            SECURITY_PROMPT,
+            sharedSystemContent,
+            contextHints,
+            changedFiles,
+            effectiveRecursionLimit,
+        ),
         runSubAgent(
             "performance_review",
             PERFORMANCE_PROMPT,
@@ -120,7 +128,10 @@ export async function runOrchestratedReview(
     console.log("\n::group::📝 Synthesizer: combining findings");
     console.log("::endgroup::");
 
-    const synthesizerMessage = `Here are the findings from the three specialist reviewers:
+    const synthesizerMessage = `Here are the findings from the four specialist reviewers:
+
+## 🐛 Bugs Review
+${bugsSummary}
 
 ## 🔒 Security Review
 ${securitySummary}
