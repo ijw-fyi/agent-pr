@@ -271,9 +271,20 @@ MCP_CONFIG: |
 | Mode | `REVIEW_MODE` | Description | Best for |
 |------|---------------|-------------|----------|
 | **Single** | `single` (default) | One agent handles the entire review end-to-end | Most PRs, lower cost |
-| **Orchestrated** | `orchestrated` | A lightweight orchestrator delegates to 3 specialized sub-agents (security, performance, code quality) | Large PRs, thorough domain-specific analysis |
+| **Orchestrated** | `orchestrated` | Three specialized sub-agents (security, performance, code quality) review in parallel, then a synthesizer submits a unified review | Large PRs, thorough domain-specific analysis |
 
-In orchestrated mode, sub-agents run their own investigation and leave inline comments independently. The orchestrator synthesizes their findings into a unified review summary.
+To enable orchestrated mode, set the `REVIEW_MODE` variable to `orchestrated` in your repo/org settings (Settings → Variables → Actions), or pass it as a workflow input:
+
+```yaml
+jobs:
+  call-review:
+    uses: ijw-fyi/agent-pr/.github/workflows/shared_workflow.yml@[master]
+    with:
+      review_mode: "orchestrated"
+    secrets: inherit
+```
+
+In orchestrated mode, three specialist agents run in parallel — each focused on its domain (🔒 security, ⚡ performance, 🧹 code quality). They leave inline comments independently, then a lightweight synthesizer combines their findings into a single review summary. This produces more thorough reviews but is slightly more expensive than single mode due to running multiple agents.
 
 ## What the Agent Reviews
 
