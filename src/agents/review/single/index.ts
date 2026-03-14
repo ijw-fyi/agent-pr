@@ -73,6 +73,7 @@ export async function runSingleReview(
     );
 
     let budgetExceeded = false;
+    let abortedForBudget = false;
     for await (const chunk of stream) {
         stepCount++;
         processChunk(chunk, stepCount, allMessages);
@@ -91,13 +92,15 @@ export async function runSingleReview(
             allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. Finish investigating your current checklist item, then submit your review immediately with submit_review. Skip remaining checklist items. Mention in your summary that the review was cut short due to budget constraints."));
             // Abort the stream to stop background processing
             console.log("🛑 Aborting original stream...");
+            abortedForBudget = true;
             abortController.abort();
             break;
         }
     }
 
-    // If we broke out due to budget, create a fresh agent for wrap-up
-    if (budgetExceeded) {
+    // If we aborted the stream for budget, create a fresh agent for wrap-up
+    // (If the agent finished naturally after budget exceeded, no wrap-up needed)
+    if (abortedForBudget) {
         console.log("\n📝 Creating fresh model and agent for wrap-up...");
 
         // Create a completely fresh model instance to avoid any state issues

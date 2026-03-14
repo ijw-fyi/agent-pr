@@ -130,6 +130,7 @@ export async function runSubAgent(
     let stepCount = 0;
     let lastAIContent = "";
     let budgetExceeded = false;
+    let abortedForBudget = false;
     const budget = getBudget();
 
     for await (const chunk of stream) {
@@ -158,13 +159,15 @@ export async function runSubAgent(
             allMessages.push(new HumanMessage(
                 "IMPORTANT BUDGET NOTICE: You are past your budget limit. Finish your current investigation item, then immediately provide your summary. Do not start investigating new items."
             ));
+            abortedForBudget = true;
             abortController.abort();
             break;
         }
     }
 
-    // If budget was exceeded, run a wrap-up pass
-    if (budgetExceeded) {
+    // If we aborted the stream for budget, run a wrap-up pass
+    // (If the agent finished naturally after budget exceeded, no wrap-up needed)
+    if (abortedForBudget) {
         console.log(`\n📝 [${name}] Running wrap-up pass...`);
         const wrapUpModel = createCachedChatOpenAI();
         const wrapUpAgent = createReactAgent({ llm: wrapUpModel, tools: subAgentTools });

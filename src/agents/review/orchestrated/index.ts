@@ -104,6 +104,7 @@ export async function runOrchestratedReview(
     );
 
     let budgetExceeded = false;
+    let abortedForBudget = false;
     for await (const chunk of stream) {
         stepCount++;
         processChunk(chunk, stepCount, allMessages);
@@ -119,13 +120,15 @@ export async function runOrchestratedReview(
             allMessages.push(new HumanMessage(
                 "IMPORTANT BUDGET NOTICE: You are past your budget limit. Submit your review immediately with submit_review using whatever findings you have so far. Mention in your summary that the review was cut short due to budget constraints."
             ));
+            abortedForBudget = true;
             abortController.abort();
             break;
         }
     }
 
-    // If budget exceeded, create a fresh agent for wrap-up
-    if (budgetExceeded) {
+    // If we aborted the stream for budget, create a fresh agent for wrap-up
+    // (If the agent finished naturally after budget exceeded, no wrap-up needed)
+    if (abortedForBudget) {
         console.log("\n📝 Creating fresh agent for wrap-up...");
         const wrapUpModel = createCachedChatOpenAI();
         const wrapUpAgent = createReactAgent({
