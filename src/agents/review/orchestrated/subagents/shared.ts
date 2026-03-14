@@ -9,7 +9,7 @@ import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { tools } from "../../../../tools/index.js";
-import { createCachedChatOpenAI, isOverBudget, getRunningCost, getBudget } from "../../../../helpers/cached-model.js";
+import { createCachedChatOpenAI, isOverBudget, getRunningCost, getBudget, getAgentCosts } from "../../../../helpers/cached-model.js";
 import { processChunk } from "../../../../helpers/stream-utils.js";
 import { truncateDiff } from "../../index.js";
 import type { PRContext } from "../../../../context/types.js";
@@ -111,7 +111,7 @@ export async function runSubAgent(
     console.log(`Context: ${contextHints.substring(0, 200)}${contextHints.length > 200 ? "..." : ""}`);
     console.log("::endgroup::");
 
-    const model = createCachedChatOpenAI();
+    const model = createCachedChatOpenAI(name);
     const subAgentTools = getSubAgentTools();
     const agent = createReactAgent({ llm: model, tools: subAgentTools });
 
@@ -169,7 +169,7 @@ export async function runSubAgent(
     // (If the agent finished naturally after budget exceeded, no wrap-up needed)
     if (abortedForBudget) {
         console.log(`\n📝 [${name}] Running wrap-up pass...`);
-        const wrapUpModel = createCachedChatOpenAI();
+        const wrapUpModel = createCachedChatOpenAI(name);
         const wrapUpAgent = createReactAgent({ llm: wrapUpModel, tools: subAgentTools });
 
         try {
@@ -195,6 +195,11 @@ export async function runSubAgent(
         }
     }
 
-    console.log(`\n✅ [${name}] Complete. Steps: ${stepCount}`);
+    const costs = getAgentCosts().get(name);
+    if (costs) {
+        console.log(`\n✅ [${name}] Complete. Steps: ${stepCount}, Cost: $${costs.cost.toFixed(4)}, Tokens: ${costs.inputTokens.toLocaleString()} in / ${costs.outputTokens.toLocaleString()} out`);
+    } else {
+        console.log(`\n✅ [${name}] Complete. Steps: ${stepCount}`);
+    }
     return lastAIContent || `No findings from ${name} sub-agent.`;
 }

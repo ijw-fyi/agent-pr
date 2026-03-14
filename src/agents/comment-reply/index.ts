@@ -58,7 +58,7 @@ export async function runCommentReplyAgent(
     console.log(`💵 Budget: $${budget.toFixed(2)}`);
 
     // Create the model with OpenRouter backend and prompt caching
-    const model = createCachedChatOpenAI();
+    const model = createCachedChatOpenAI("comment_reply");
 
     // Get tools for the agent
     const tools = getCommentReplyTools();
@@ -109,6 +109,7 @@ export async function runCommentReplyAgent(
     );
 
     let budgetExceeded = false;
+    let abortedForBudget = false;
     for await (const chunk of stream) {
         stepCount++;
         processChunk(chunk, stepCount, allMessages);
@@ -126,17 +127,19 @@ export async function runCommentReplyAgent(
             allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings and respond to the user or save any preferences you've identified."));
             // Abort the stream to stop background processing
             console.log("🛑 Aborting original stream...");
+            abortedForBudget = true;
             abortController.abort();
             break;
         }
     }
 
-    // If we broke out due to budget, create a fresh agent for wrap-up
-    if (budgetExceeded) {
+    // If we aborted the stream for budget, create a fresh agent for wrap-up
+    // (If the agent finished naturally after budget exceeded, no wrap-up needed)
+    if (abortedForBudget) {
         console.log("\n📝 Creating fresh model and agent for wrap-up...");
 
         // Create a completely fresh model instance to avoid any state issues
-        const wrapUpModel = createCachedChatOpenAI();
+        const wrapUpModel = createCachedChatOpenAI("comment_reply");
 
         // Create a new agent instance with the fresh model
         const wrapUpAgent = createReactAgent({

@@ -12,7 +12,7 @@ import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { tools } from "../../../tools/index.js";
 import { submitReviewTool } from "../../../tools/submit-review.js";
-import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats } from "../../../helpers/cached-model.js";
+import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats, getAgentCosts } from "../../../helpers/cached-model.js";
 import { processChunk } from "../../../helpers/stream-utils.js";
 import { getVersion } from "../../../helpers/version.js";
 import { buildContextMessage } from "../index.js";
@@ -70,7 +70,7 @@ export async function runOrchestratedReview(
     console.log("::endgroup::");
 
     // Create the model
-    const model = createCachedChatOpenAI();
+    const model = createCachedChatOpenAI("orchestrator");
 
     // Build orchestrator tools
     const orchestratorTools = getOrchestratorTools(context, effectiveRecursionLimit);
@@ -130,7 +130,7 @@ export async function runOrchestratedReview(
     // (If the agent finished naturally after budget exceeded, no wrap-up needed)
     if (abortedForBudget) {
         console.log("\n📝 Creating fresh agent for wrap-up...");
-        const wrapUpModel = createCachedChatOpenAI();
+        const wrapUpModel = createCachedChatOpenAI("orchestrator");
         const wrapUpAgent = createReactAgent({
             llm: wrapUpModel,
             tools: orchestratorTools,
@@ -186,6 +186,14 @@ export async function runOrchestratedReview(
             .forEach(([name, count]) => {
                 console.log(`  - ${name}: ${count} error(s)`);
             });
+    }
+
+    const agentCostMap = getAgentCosts();
+    if (agentCostMap.size > 0) {
+        console.log(`\n📊 Per-agent cost breakdown:`);
+        for (const [name, costs] of agentCostMap) {
+            console.log(`  - ${name}: $${costs.cost.toFixed(4)} (${costs.inputTokens.toLocaleString()} in, ${costs.outputTokens.toLocaleString()} out)`);
+        }
     }
     console.log("=".repeat(60));
 }

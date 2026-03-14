@@ -14,7 +14,7 @@ import { ChatOpenAI } from "@langchain/openai";
  * This works by patching _getClientOptions to intercept client creation
  * and patch the client's chat.completions.create method
  */
-export function createCachedChatOpenAI(): ChatOpenAI {
+export function createCachedChatOpenAI(agentName?: string): ChatOpenAI {
     const model = new ChatOpenAI({
         modelName: process.env.MODEL!,
         configuration: {
@@ -38,7 +38,7 @@ export function createCachedChatOpenAI(): ChatOpenAI {
         // @ts-ignore
         if (this.client && !clientPatched) {
             // @ts-ignore
-            patchOpenAIClient(this.client);
+            patchOpenAIClient(this.client, agentName);
             clientPatched = true;
             console.log("✅ Prompt caching client patched");
         }
@@ -56,6 +56,10 @@ let runningOutputTokens = 0;
 let runningCacheReadTokens = 0;
 let runningCacheWriteTokens = 0;
 let callCount = 0;
+
+// Per-agent cost tracking — keyed by agent name passed to createCachedChatOpenAI()
+export interface AgentCostEntry { cost: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number }
+const agentCosts = new Map<string, AgentCostEntry>();
 
 // Tool usage tracking
 const toolUsage: Record<string, number> = {};
@@ -128,6 +132,13 @@ export function getRunningCacheWriteTokens(): number {
 }
 
 /**
+ * Get the per-agent cost breakdown
+ */
+export function getAgentCosts(): Map<string, AgentCostEntry> {
+    return agentCosts;
+}
+
+/**
  * Reset running totals (call at start of new agent run)
  */
 export function resetRunningCost(): void {
@@ -138,6 +149,7 @@ export function resetRunningCost(): void {
     runningCacheWriteTokens = 0;
     callCount = 0;
     reasoningStore.clear();
+    agentCosts.clear();
     // Reset tool usage
     for (const key of Object.keys(toolUsage)) delete toolUsage[key];
     for (const key of Object.keys(failedToolUsage)) delete failedToolUsage[key];
@@ -212,7 +224,7 @@ export function isOverBudget(): boolean {
 /**
  * Patch an OpenAI client to inject cache_control into messages
  */
-function patchOpenAIClient(client: any) {
+function patchOpenAIClient(client: any, agentName?: string) {
     const originalCreate = client.chat.completions.create.bind(client.chat.completions);
 
     client.chat.completions.create = async function (params: any, options?: any) {
@@ -373,6 +385,21 @@ function patchOpenAIClient(client: any) {
                         ? ` (provider: $${upstreamCost.toFixed(6)} + router: $${cost.toFixed(6)})`
                         : '';
                     console.log(`💰 Cost: ${costStr}${breakdown} | Running total: $${runningCostTotal.toFixed(6)}`);
+                }
+
+                // Per-agent cost tracking
+                if (agentName) {
+                    if (!agentCosts.has(agentName)) {
+                        agentCosts.set(agentName, { cost: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+                    }
+                    const ac = agentCosts.get(agentName)!;
+                    ac.inputTokens += inputTokens;
+                    ac.outputTokens += outputTokens;
+                    if (usage.prompt_tokens_details) {
+                        ac.cacheWriteTokens += usage.prompt_tokens_details.cache_write_tokens || 0;
+                        ac.cacheReadTokens += usage.prompt_tokens_details.cached_tokens || 0;
+                    }
+                    ac.cost += (effectiveCost > 0 ? effectiveCost : 0);
                 }
             }
 

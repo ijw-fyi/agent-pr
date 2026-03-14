@@ -29,7 +29,7 @@ export async function runSingleReview(
     console.log(`💵 Budget: $${budget.toFixed(2)}`);
 
     // Create the model with OpenRouter backend and prompt caching
-    const model = createCachedChatOpenAI();
+    const model = createCachedChatOpenAI("single_review");
 
     // Create the React agent
     const agent = createReactAgent({
@@ -104,7 +104,7 @@ export async function runSingleReview(
         console.log("\n📝 Creating fresh model and agent for wrap-up...");
 
         // Create a completely fresh model instance to avoid any state issues
-        const wrapUpModel = createCachedChatOpenAI();
+        const wrapUpModel = createCachedChatOpenAI("single_review");
 
         // Create a new agent instance with the fresh model
         const wrapUpAgent = createReactAgent({
