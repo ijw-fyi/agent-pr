@@ -53,6 +53,15 @@ export const submitReviewTool = tool(
                 })
                 .join('\n');
 
+            const agentCostMap = getAgentCosts();
+            const agentCostSection = agentCostMap.size < 2 ? '' : (() => {
+                const rows = Array.from(agentCostMap.entries())
+                    .sort(([, a], [, b]) => b.cost - a.cost)
+                    .map(([name, c]) => `| ${name} | $${c.cost.toFixed(4)} | ${c.inputTokens.toLocaleString()} | ${c.outputTokens.toLocaleString()} |`)
+                    .join('\n');
+                return `\n📊 **Per-agent cost breakdown**\n\n| Agent | Cost | Input Tokens | Output Tokens |\n|-------|------|-------------|---------------|\n${rows}\n`;
+            })();
+
             const body = `## ${verdictEmoji} ${verdictText}
 
 ${summary}
@@ -73,15 +82,7 @@ ${summary}
 | Tool | Calls |
 |------|-------|
 ${toolsTable || '| (none) | - |'}
-${(() => {
-                const agentCostMap = getAgentCosts();
-                if (agentCostMap.size < 2) return '';
-                const rows = Array.from(agentCostMap.entries())
-                    .sort(([, a], [, b]) => b.cost - a.cost)
-                    .map(([name, c]) => `| ${name} | $${c.cost.toFixed(4)} | ${c.inputTokens.toLocaleString()} | ${c.outputTokens.toLocaleString()} |`)
-                    .join('\n');
-                return `\n📊 **Per-agent cost breakdown**\n\n| Agent | Cost | Input Tokens | Output Tokens |\n|-------|------|-------------|---------------|\n${rows}\n`;
-            })()}
+${agentCostSection}
 </details>`;
 
             // Submit an actual GitHub PR review (approve/request changes/comment)

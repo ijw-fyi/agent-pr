@@ -135,7 +135,7 @@ export function getRunningCacheWriteTokens(): number {
  * Get the per-agent cost breakdown
  */
 export function getAgentCosts(): Map<string, AgentCostEntry> {
-    return agentCosts;
+    return new Map([...agentCosts]);
 }
 
 /**

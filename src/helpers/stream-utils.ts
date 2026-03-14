@@ -33,7 +33,7 @@ function formatCost(): string {
  * @param stepNum - Current step number for logging
  * @param allMessages - Array to collect messages for history preservation
  */
-export function processChunk(
+function processChunk(
     chunk: any,
     stepNum: number,
     allMessages: any[]
