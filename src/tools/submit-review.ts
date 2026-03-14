@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { submitPRReview, setReviewLabel } from "../context/github.js";
-import { getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats } from "../helpers/cached-model.js";
+import { getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats, getAgentCosts } from "../helpers/cached-model.js";
 
 /**
  * Tool to submit the final review with a summary
@@ -73,7 +73,14 @@ ${summary}
 | Tool | Calls |
 |------|-------|
 ${toolsTable || '| (none) | - |'}
-
+${(() => {
+                const agentCostMap = getAgentCosts();
+                if (agentCostMap.size < 2) return '';
+                const lines = Array.from(agentCostMap.entries())
+                    .sort(([, a], [, b]) => b.cost - a.cost)
+                    .map(([name, c]) => `  - ${name}: $${c.cost.toFixed(4)} (${c.inputTokens.toLocaleString()} in, ${c.outputTokens.toLocaleString()} out)`);
+                return `\n📊 **Per-agent cost breakdown:**\n\`\`\`\n${lines.join('\n')}\n\`\`\`\n`;
+            })()}
 </details>`;
 
             // Submit an actual GitHub PR review (approve/request changes/comment)
