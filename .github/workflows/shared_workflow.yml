@@ -15,6 +15,10 @@ on:
         description: 'Max diff lines of code to review'
         type: string
         required: false
+      review_mode:
+        description: 'Review strategy: single (default) or orchestrated'
+        type: string
+        required: false
       mcp_config:
         description: 'JSON config for MCP servers'
         type: string
@@ -67,6 +71,7 @@ jobs:
           MCP_CONFIG: ${{ inputs.mcp_config || vars.MCP_CONFIG || '{"servers":[{"name":"deepwiki","transport":"http","url":"https://mcp.deepwiki.com/mcp"}]}' }}
           PR_AGENT_MAX_LOC: ${{ inputs.max_loc || vars.PR_AGENT_MAX_LOC || '2000' }}
           AGENT_PR_BUDGET: ${{ inputs.budget || vars.AGENT_PR_BUDGET || '2' }}
+          REVIEW_MODE: ${{ inputs.review_mode || vars.REVIEW_MODE || 'single' }}
           ACTION_MODE: review
           PR_NUMBER: ${{ github.event.issue.number }}
           REPO_OWNER: ${{ github.repository_owner }}

@@ -163,6 +163,7 @@ Go to **Settings → Secrets and variables → Actions**:
 | `model` / `PR_REVIEW_MODEL` | `anthropic/claude-opus-4.6` | OpenRouter model identifier |
 | `budget` / `AGENT_PR_BUDGET` | `2` | Cost budget in USD |
 | `max_loc` / `PR_AGENT_MAX_LOC` | `2000` | Max diff lines of code to review |
+| `review_mode` / `REVIEW_MODE` | `single` | Review strategy: `single` (one agent) or `orchestrated` (sub-agents for security, performance, code quality) |
 | `mcp_config` / `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 
 Example with workflow inputs:
@@ -235,6 +236,7 @@ Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opu
 | `RECURSION_LIMIT` | `100` | Max agent steps (overridable via `--recursion-limit`) |
 | `PR_AGENT_MAX_LOC` | `2000` | Max diff LOC to review (overridable via `--max-loc`) |
 | `PR_AGENT_IGNORE` | - | Comma-separated glob patterns to ignore (overridable via `--ignore`) |
+| `REVIEW_MODE` | `single` | Review strategy: `single` or `orchestrated` |
 | `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 | `GEMINI_API_KEY` | - | Enables web search with Gemini |
 
@@ -263,6 +265,26 @@ MCP_CONFIG: |
     ]
   }
 ```
+
+## Review Modes
+
+| Mode | `REVIEW_MODE` | Description | Best for |
+|------|---------------|-------------|----------|
+| **Single** | `single` (default) | One agent handles the entire review end-to-end | Most PRs, lower cost |
+| **Orchestrated** | `orchestrated` | Three specialized sub-agents (security, performance, code quality) review in parallel, then a synthesizer submits a unified review | Large PRs, thorough domain-specific analysis |
+
+To enable orchestrated mode, set the `REVIEW_MODE` variable to `orchestrated` in your repo/org settings (Settings → Variables → Actions), or pass it as a workflow input:
+
+```yaml
+jobs:
+  call-review:
+    uses: ijw-fyi/agent-pr/.github/workflows/shared_workflow.yml@[master]
+    with:
+      review_mode: "orchestrated"
+    secrets: inherit
+```
+
+In orchestrated mode, three specialist agents run in parallel — each focused on its domain (🔒 security, ⚡ performance, 🧹 code quality). They leave inline comments independently, then a lightweight synthesizer combines their findings into a single review summary. This produces more thorough reviews but is slightly more expensive than single mode due to running multiple agents.
 
 ## What the Agent Reviews
 

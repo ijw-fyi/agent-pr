@@ -14,7 +14,7 @@ import { ChatOpenAI } from "@langchain/openai";
  * This works by patching _getClientOptions to intercept client creation
  * and patch the client's chat.completions.create method
  */
-export function createCachedChatOpenAI(): ChatOpenAI {
+export function createCachedChatOpenAI(agentName?: string): ChatOpenAI {
     const model = new ChatOpenAI({
         modelName: process.env.MODEL!,
         configuration: {
@@ -38,7 +38,7 @@ export function createCachedChatOpenAI(): ChatOpenAI {
         // @ts-ignore
         if (this.client && !clientPatched) {
             // @ts-ignore
-            patchOpenAIClient(this.client);
+            patchOpenAIClient(this.client, agentName);
             clientPatched = true;
             console.log("✅ Prompt caching client patched");
         }
@@ -56,6 +56,10 @@ let runningOutputTokens = 0;
 let runningCacheReadTokens = 0;
 let runningCacheWriteTokens = 0;
 let callCount = 0;
+
+// Per-agent cost tracking — keyed by agent name passed to createCachedChatOpenAI()
+export interface AgentCostEntry { cost: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number }
+const agentCosts = new Map<string, AgentCostEntry>();
 
 // Tool usage tracking
 const toolUsage: Record<string, number> = {};
@@ -128,6 +132,13 @@ export function getRunningCacheWriteTokens(): number {
 }
 
 /**
+ * Get the per-agent cost breakdown
+ */
+export function getAgentCosts(): Map<string, AgentCostEntry> {
+    return new Map([...agentCosts]);
+}
+
+/**
  * Reset running totals (call at start of new agent run)
  */
 export function resetRunningCost(): void {
@@ -138,6 +149,7 @@ export function resetRunningCost(): void {
     runningCacheWriteTokens = 0;
     callCount = 0;
     reasoningStore.clear();
+    agentCosts.clear();
     // Reset tool usage
     for (const key of Object.keys(toolUsage)) delete toolUsage[key];
     for (const key of Object.keys(failedToolUsage)) delete failedToolUsage[key];
@@ -189,6 +201,58 @@ export function getToolUsageStats(): { toolUsage: Record<string, number>; failed
 }
 
 /**
+ * Log run statistics to console.
+ * Consolidates the stats logging block used by all agent modes.
+ */
+export function logRunStats(label: string, stepCount: number): void {
+    const finalCost = getRunningCost();
+    const budget = getBudget();
+    const inputTokens = getRunningInputTokens();
+    const outputTokens = getRunningOutputTokens();
+    const totalTokens = inputTokens + outputTokens;
+    const cacheReadTokens = getRunningCacheReadTokens();
+    const cacheWriteTokens = getRunningCacheWriteTokens();
+    const cacheHitRate = inputTokens > 0 ? (cacheReadTokens / inputTokens * 100) : 0;
+    const { toolUsage: tu, failedToolUsage: ftu, totalCalls: totalToolCalls, totalFailed: totalFailedCalls } = getToolUsageStats();
+
+    console.log(`\n${"=".repeat(60)}`);
+    console.log(`${label} completed. Total steps: ${stepCount}`);
+    console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
+    console.log(`📊 Tokens: ${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output, ${totalTokens.toLocaleString()} total`);
+    console.log(`💾 Cache: ${cacheHitRate.toFixed(1)}% hit rate (${cacheReadTokens.toLocaleString()} read, ${cacheWriteTokens.toLocaleString()} write)`);
+    console.log(`🔧 Tool Usage: ${totalToolCalls} calls${totalFailedCalls > 0 ? ` (${totalFailedCalls} failed)` : ''}`);
+
+    if (totalToolCalls > 0) {
+        Object.entries(tu)
+            .sort(([, a], [, b]) => b - a)
+            .forEach(([name, count]) => {
+                const failed = ftu[name] || 0;
+                const failedStr = failed > 0 ? ` (⚠️ ${failed} failed)` : '';
+                console.log(`  - ${name}: ${count}${failedStr}`);
+            });
+    }
+
+    if (totalFailedCalls > 0) {
+        console.log(`\n❌ Failed Tools:`);
+        Object.entries(ftu)
+            .sort(([, a], [, b]) => b - a)
+            .forEach(([name, count]) => {
+                console.log(`  - ${name}: ${count} error(s)`);
+            });
+    }
+
+    const agentCostMap = getAgentCosts();
+    if (agentCostMap.size > 1) {
+        console.log(`\n📊 Per-agent cost breakdown:`);
+        for (const [name, costs] of agentCostMap) {
+            console.log(`  - ${name}: $${costs.cost.toFixed(4)} (${costs.inputTokens.toLocaleString()} in, ${costs.outputTokens.toLocaleString()} out)`);
+        }
+    }
+
+    console.log("=".repeat(60));
+}
+
+/**
  * Get the budget limit from env var, defaults to $1.00 USD
  */
 export function getBudget(): number {
@@ -212,7 +276,7 @@ export function isOverBudget(): boolean {
 /**
  * Patch an OpenAI client to inject cache_control into messages
  */
-function patchOpenAIClient(client: any) {
+function patchOpenAIClient(client: any, agentName?: string) {
     const originalCreate = client.chat.completions.create.bind(client.chat.completions);
 
     client.chat.completions.create = async function (params: any, options?: any) {
@@ -222,7 +286,7 @@ function patchOpenAIClient(client: any) {
         }
 
         callCount++;
-        console.log(`::group::[Call ${callCount} - Stats] OpenRouter API Request`);
+        console.log(`::group::[Call ${callCount} - $${runningCostTotal.toFixed(4)}] OpenRouter API Request`);
         console.log("🔄 Sending request with prompt caching");
 
         // Debug: show message roles
@@ -244,11 +308,15 @@ function patchOpenAIClient(client: any) {
 
         // Inject cache_control into messages AND restore reasoning for assistant messages
         const modifiedMessages = messages.map((msg: any, index: number) => {
-            // Cache: system (index 0), first user (index 1), last user, and last tool message
+            // Cache breakpoints (max 4 allowed by Anthropic):
+            // 1. All system messages (1 for single agent, 2 for sub-agents with shared + domain prompts)
+            // 2. Last user message (most recent context / budget wrap-up)
+            // 3. Last tool message (most recent tool result)
+            // This enables cross-agent cache sharing: sub-agents share an identical
+            // SystemMessage[0] (diff), so agents 2+3 get cache hits on the prefix.
             const shouldCache =
-                (msg.role === "system" && index === 0) ||
-                (msg.role === "user" && index === 1) ||
-                (msg.role === "user" && index === lastUserIndex && index > 1) ||
+                (msg.role === "system") ||
+                (msg.role === "user" && index === lastUserIndex) ||
                 (msg.role === "tool" && index === lastToolIndex);
 
             let result = msg;
@@ -373,6 +441,21 @@ function patchOpenAIClient(client: any) {
                         ? ` (provider: $${upstreamCost.toFixed(6)} + router: $${cost.toFixed(6)})`
                         : '';
                     console.log(`💰 Cost: ${costStr}${breakdown} | Running total: $${runningCostTotal.toFixed(6)}`);
+                }
+
+                // Per-agent cost tracking
+                if (agentName) {
+                    if (!agentCosts.has(agentName)) {
+                        agentCosts.set(agentName, { cost: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+                    }
+                    const ac = agentCosts.get(agentName)!;
+                    ac.inputTokens += inputTokens;
+                    ac.outputTokens += outputTokens;
+                    if (usage.prompt_tokens_details) {
+                        ac.cacheWriteTokens += usage.prompt_tokens_details.cache_write_tokens || 0;
+                        ac.cacheReadTokens += usage.prompt_tokens_details.cached_tokens || 0;
+                    }
+                    ac.cost += (effectiveCost > 0 ? effectiveCost : 0);
                 }
             }
 

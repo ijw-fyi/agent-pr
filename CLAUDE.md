@@ -23,8 +23,19 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
 
 1. **Review mode** (`ACTION_MODE=review`) — `src/agents/review/index.ts`
    - Triggered by `/review` comment on a PR
-   - Runs a 3-phase ReAct agent: triage → investigation → submit review
-   - Uses tools to read files, grep, leave inline comments, and submit a final verdict
+   - Dispatches to **single** or **orchestrated** mode via `REVIEW_MODE` env var (default: `single`)
+   - Includes duplicate review prevention — checks for existing bot reviews before submitting
+   - Files can be excluded via `--ignore` glob patterns (uses `minimatch`)
+   - **Single mode** (`REVIEW_MODE=single`) — `src/agents/review/single/index.ts`
+     - One ReAct agent handles the entire review: 4-phase process (Phase 0 re-review check → triage → investigation → submit)
+     - Has all tools: read files, grep, leave inline comments, submit review
+   - **Orchestrated mode** (`REVIEW_MODE=orchestrated`) — `src/agents/review/orchestrated/index.ts`
+     - A lightweight orchestrator triages the PR and delegates to 3 specialized sub-agents
+     - Sub-agents: `security_review`, `performance_review`, `code_quality_review` (defined in `src/agents/review/orchestrated/subagents/`)
+     - Each sub-agent runs a 4-phase review (Phase 0 → triage → investigate → summarize) within its domain
+     - Sub-agents leave inline comments; orchestrator synthesizes findings and submits the final review
+     - Orchestrator has NO investigation tools — only sub-agent tools + `submit_review`
+     - Sub-agents share a factory (`createSubAgentTool` in `shared.ts`) and runner (`runSubAgent`)
 
 2. **Comment reply mode** (`ACTION_MODE=comment-reply`) — `src/agents/comment-reply/index.ts`
    - Triggered in two cases:
@@ -38,11 +49,12 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
 ### Key Modules
 
 - **`src/context/github.ts`** — All GitHub API interactions via Octokit (fetch PR data, post comments, submit reviews, read/write preferences branch)
-- **`src/context/types.ts`** — Core interfaces: `PRContext`, `ReviewComment`, `PRFile`, etc.
+- **`src/context/types.ts`** — Core interfaces: `PRContext`, `ReviewComment`, `PRFile`, `PRCommit`, `ReviewSummary`, etc.
 - **`src/tools/`** — LangChain tool implementations. Each tool exports a `tool()` call with a Zod schema. Tool names use snake_case (e.g., `read_files`, `leave_comment`)
 - **`src/tools/index.ts`** — Tool registry; builds the tool array and accepts MCP tools dynamically
-- **`src/helpers/cached-model.ts`** — OpenRouter client with prompt caching support, cost/token tracking
-- **`src/helpers/overrides.ts`** — Parses command flags (`--budget`, `--model`, `--recursion-limit`, `--max-loc`) from `/review` and slash commands (`/question`, `/pr`, `/reply`)
+- **`src/helpers/cached-model.ts`** — OpenRouter client with prompt caching support, cost/token tracking, per-agent cost breakdown
+- **`src/helpers/stream-utils.ts`** — Shared `processChunk()` for logging and `streamWithBudget()` for budget-monitored agent streaming with automatic wrap-up
+- **`src/helpers/overrides.ts`** — Parses command flags (`--budget`, `--model`, `--recursion-limit`, `--max-loc`, `--ignore`) from `/review` and slash commands. `--ignore` is a multi-value flag (repeatable) joined with commas into `PR_AGENT_IGNORE`
 - **`src/helpers/tree-sitter.ts`** — Web Tree Sitter parser for symbol extraction (TS, JS, Python, C, C++)
 - **`src/mcp/`** — MCP client for connecting to HTTP/stdio MCP servers (DeepWiki by default)
 - **`src/preferences/git.ts`** — Preference storage on `__agent_pr__` orphan branch via GitHub API
@@ -54,7 +66,9 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
 
 ### Runtime Context
 
-Tools access runtime context through `process.env` variables: `REPO_OWNER`, `REPO_NAME`, `PR_NUMBER`, `HEAD_SHA`, `MODEL`, `OPENROUTER_KEY`, `GITHUB_TOKEN`. These are set at startup from GitHub Actions environment.
+Tools access runtime context through `process.env` variables: `REPO_OWNER`, `REPO_NAME`, `PR_NUMBER`, `HEAD_SHA`, `MODEL`, `OPENROUTER_KEY`, `GITHUB_TOKEN`, `PR_AGENT_IGNORE`. These are set at startup from GitHub Actions environment.
+
+`PRContext` includes `commits` (chronological list), `reviewSummaries` (bot's previous reviews), and `botLogin` (authenticated bot's GitHub username) for re-review awareness and duplicate prevention.
 
 ### Build Pipeline
 

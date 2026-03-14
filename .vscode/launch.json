@@ -19,7 +19,8 @@
                 "REPO_NAME": "${input:repoName}",
                 "PR_NUMBER": "${input:prNumber}",
                 "MODEL": "${input:model}",
-                "AGENT_PR_BUDGET": "${input:budget}"
+                "AGENT_PR_BUDGET": "${input:budget}",
+                "REVIEW_MODE": "${input:reviewMode}"
             },
             "console": "integratedTerminal"
         }
@@ -54,6 +55,12 @@
             "type": "promptString",
             "description": "Budget limit in USD",
             "default": "1"
+        },
+        {
+            "id": "reviewMode",
+            "type": "promptString",
+            "description": "Review mode (single or orchestrated)",
+            "default": "orchestrated"
         }
     ]
 }

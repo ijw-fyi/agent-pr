@@ -1,12 +1,11 @@
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import { COMMENT_REPLY_PROMPT } from "./prompt.js";
 import { storePreferenceTool } from "../../tools/store-preference.js";
 import { replyToCommentTool } from "../../tools/reply-to-comment.js";
 import { tools as reviewTools } from "../../tools/index.js";
 import { readPreferences } from "../../preferences/index.js";
-import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens } from "../../helpers/cached-model.js";
-import { processChunk } from "../../helpers/stream-utils.js";
+import { resetRunningCost, getBudget, logRunStats } from "../../helpers/cached-model.js";
+import { streamWithBudget } from "../../helpers/stream-utils.js";
 import { getVersion } from "../../helpers/version.js";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
@@ -57,17 +56,8 @@ export async function runCommentReplyAgent(
     const budget = getBudget();
     console.log(`💵 Budget: $${budget.toFixed(2)}`);
 
-    // Create the model with OpenRouter backend and prompt caching
-    const model = createCachedChatOpenAI();
-
     // Get tools for the agent
     const tools = getCommentReplyTools();
-
-    // Create agent with all available tools
-    const agent = createReactAgent({
-        llm: model,
-        tools,
-    });
 
     // Load existing preferences
     const existingPreferences = await readPreferences(context.owner, context.repo);
@@ -93,123 +83,21 @@ export async function runCommentReplyAgent(
     console.log(`Tools: ${tools.map(t => t.name).join(", ")}`);
     console.log("::endgroup::");
 
-    // Stream the agent execution
-    let stepCount = 0;
-    const allMessages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+    // Stream the agent execution with budget monitoring
+    const allMessages = [
         new SystemMessage(systemPrompt),
         new HumanMessage(contextMessage),
     ];
 
-    // Use AbortController to allow proper cancellation of the stream
-    const abortController = new AbortController();
+    const { stepCount } = await streamWithBudget({
+        agentName: "comment_reply",
+        tools,
+        messages: allMessages,
+        recursionLimit,
+        wrapUpMessage: "IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings and respond to the user or save any preferences you've identified.",
+    });
 
-    const stream = await agent.stream(
-        { messages: allMessages },
-        { recursionLimit, signal: abortController.signal }
-    );
-
-    let budgetExceeded = false;
-    for await (const chunk of stream) {
-        stepCount++;
-        processChunk(chunk, stepCount, allMessages);
-
-        // Check budget after each step (only flag once)
-        if (!budgetExceeded && isOverBudget()) {
-            budgetExceeded = true;
-            const cost = getRunningCost();
-            console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - will wrap up after current tool calls`);
-        }
-
-        // If budget exceeded and we just got tool results, inject wrap-up and break
-        if (budgetExceeded && chunk.tools?.messages) {
-            console.log("\n📝 Injecting wrap-up message after tool results...");
-            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. STOP exploring the code immediately. Compile your findings and respond to the user or save any preferences you've identified."));
-            // Abort the stream to stop background processing
-            console.log("🛑 Aborting original stream...");
-            abortController.abort();
-            break;
-        }
-    }
-
-    // If we broke out due to budget, create a fresh agent for wrap-up
-    if (budgetExceeded) {
-        console.log("\n📝 Creating fresh model and agent for wrap-up...");
-
-        // Create a completely fresh model instance to avoid any state issues
-        const wrapUpModel = createCachedChatOpenAI();
-
-        // Create a new agent instance with the fresh model
-        const wrapUpAgent = createReactAgent({
-            llm: wrapUpModel,
-            tools,
-        });
-
-        try {
-            const wrapUpStream = await wrapUpAgent.stream(
-                { messages: allMessages },
-                { recursionLimit: 20 }
-            );
-
-            for await (const chunk of wrapUpStream) {
-                stepCount++;
-                processChunk(chunk, stepCount, allMessages);
-            }
-            console.log("📝 Wrap-up complete");
-        } catch (error) {
-            console.error("Wrap-up error:", error);
-        }
-    }
-
-    const finalCost = getRunningCost();
-    const inputTokens = getRunningInputTokens();
-    const outputTokens = getRunningOutputTokens();
-    const totalTokens = inputTokens + outputTokens;
-
-    // Calculate tool usage
-    const toolUsage: Record<string, number> = {};
-    const failedToolUsage: Record<string, number> = {};
-    let totalToolCalls = 0;
-    let totalFailedCalls = 0;
-
-    for (const msg of allMessages) {
-        if (msg instanceof ToolMessage && msg.name) {
-            toolUsage[msg.name] = (toolUsage[msg.name] || 0) + 1;
-            totalToolCalls++;
-
-            // Check for failures
-            const content = typeof msg.content === 'string' ? msg.content : '';
-            if (content.startsWith('Error')) {
-                failedToolUsage[msg.name] = (failedToolUsage[msg.name] || 0) + 1;
-                totalFailedCalls++;
-            }
-        }
-    }
-
-    console.log(`\n${"=".repeat(60)}`);
-    console.log(`Comment Reply Agent completed. Total steps: ${stepCount}`);
-    console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
-    console.log(`📊 Tokens: ${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output, ${totalTokens.toLocaleString()} total`);
-    console.log(`🔧 Tool Usage: ${totalToolCalls} calls${totalFailedCalls > 0 ? ` (${totalFailedCalls} failed)` : ''}`);
-
-    if (totalToolCalls > 0) {
-        Object.entries(toolUsage)
-            .sort(([, a], [, b]) => b - a)
-            .forEach(([name, count]) => {
-                const failed = failedToolUsage[name] || 0;
-                const failedStr = failed > 0 ? ` (⚠️ ${failed} failed)` : '';
-                console.log(`  - ${name}: ${count}${failedStr}`);
-            });
-    }
-
-    if (totalFailedCalls > 0) {
-        console.log(`\n❌ Failed Tools:`);
-        Object.entries(failedToolUsage)
-            .sort(([, a], [, b]) => b - a)
-            .forEach(([name, count]) => {
-                console.log(`  - ${name}: ${count} error(s)`);
-            });
-    }
-    console.log("=".repeat(60));
+    logRunStats("Comment Reply Agent", stepCount);
 }
 
 /**

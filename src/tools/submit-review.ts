@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { submitPRReview, setReviewLabel } from "../context/github.js";
-import { getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats } from "../helpers/cached-model.js";
+import { getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats, getAgentCosts } from "../helpers/cached-model.js";
 
 /**
  * Tool to submit the final review with a summary
@@ -53,6 +53,15 @@ export const submitReviewTool = tool(
                 })
                 .join('\n');
 
+            const agentCostMap = getAgentCosts();
+            const agentCostSection = agentCostMap.size < 2 ? '' : (() => {
+                const rows = Array.from(agentCostMap.entries())
+                    .sort(([, a], [, b]) => b.cost - a.cost)
+                    .map(([name, c]) => `| ${name} | $${c.cost.toFixed(4)} | ${c.inputTokens.toLocaleString()} | ${c.outputTokens.toLocaleString()} |`)
+                    .join('\n');
+                return `\n📊 **Per-agent cost breakdown**\n\n| Agent | Cost | Input Tokens | Output Tokens |\n|-------|------|-------------|---------------|\n${rows}\n`;
+            })();
+
             const body = `## ${verdictEmoji} ${verdictText}
 
 ${summary}
@@ -73,7 +82,7 @@ ${summary}
 | Tool | Calls |
 |------|-------|
 ${toolsTable || '| (none) | - |'}
-
+${agentCostSection}
 </details>`;
 
             // Submit an actual GitHub PR review (approve/request changes/comment)

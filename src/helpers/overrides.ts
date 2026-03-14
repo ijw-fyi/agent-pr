@@ -12,6 +12,7 @@ const FLAG_CONFIG: Record<string, { envVar: string; type: 'number' | 'string'; m
     'recursion-limit': { envVar: 'RECURSION_LIMIT', type: 'number' },
     'max-loc':         { envVar: 'PR_AGENT_MAX_LOC', type: 'number' },
     'ignore':          { envVar: 'PR_AGENT_IGNORE',  type: 'string', multi: true },
+    'mode':            { envVar: 'REVIEW_MODE',      type: 'string' },
 };
 
 const MODEL_ALIASES: Record<string, string> = {
