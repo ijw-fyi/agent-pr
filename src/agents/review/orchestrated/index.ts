@@ -15,6 +15,7 @@ import { submitReviewTool } from "../../../tools/submit-review.js";
 import { resetRunningCost, getBudget, logRunStats } from "../../../helpers/cached-model.js";
 import { streamWithBudget } from "../../../helpers/stream-utils.js";
 import { getVersion } from "../../../helpers/version.js";
+import { findReviewCommentBody, stripOverrideFlags } from "../../../helpers/overrides.js";
 import { extractChangedFiles } from "../index.js";
 import { SYNTHESIZER_PROMPT } from "./prompt.js";
 import { SECURITY_PROMPT } from "./subagents/security.js";
@@ -25,35 +26,13 @@ import type { PRContext } from "../../../context/types.js";
 
 /**
  * Extract user instructions from the /review trigger comment, if any.
- * Strips the /review command prefix and any flags.
+ * Strips the /review command prefix and any override flags.
  */
 function extractUserInstructions(context: PRContext): string {
-    // Look for the trigger comment in conversation
-    const triggerCommentId = process.env.TRIGGER_COMMENT_ID;
-    let reviewBody: string | null = null;
-
-    if (triggerCommentId) {
-        const id = parseInt(triggerCommentId, 10);
-        const match = context.conversation.find(c => c.id === id);
-        if (match) reviewBody = match.body;
-    }
-
-    if (!reviewBody) {
-        // Fall back to last /review comment
-        for (let i = context.conversation.length - 1; i >= 0; i--) {
-            if (context.conversation[i].body.trimStart().startsWith('/review')) {
-                reviewBody = context.conversation[i].body;
-                break;
-            }
-        }
-    }
-
+    const reviewBody = findReviewCommentBody(context.conversation);
     if (!reviewBody) return "";
-
-    // Strip the /review command and any --flags
     const withoutCommand = reviewBody.replace(/^\/review\s*/, "");
-    const withoutFlags = withoutCommand.replace(/--\w+(?:\s+\S+)?/g, "").trim();
-    return withoutFlags;
+    return stripOverrideFlags(withoutCommand);
 }
 
 /**
@@ -109,7 +88,10 @@ export async function runOrchestratedReview(
         changedFiles,
         effectiveRecursionLimit,
         () => resolveCacheReady!(),
-    );
+    ).catch(err => {
+        resolveCacheReady!(); // unblock agents 2+3 even if agent 1 fails
+        throw err;            // re-throw so Promise.all still rejects
+    });
 
     // Wait for cache to be warm before starting agents 2+3
     await cacheReady;
