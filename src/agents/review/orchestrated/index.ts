@@ -8,8 +8,6 @@
  */
 
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import type { StructuredToolInterface } from "@langchain/core/tools";
-import { tools } from "../../../tools/index.js";
 import { submitReviewTool } from "../../../tools/submit-review.js";
 import { resetRunningCost, getBudget, logRunStats } from "../../../helpers/cached-model.js";
 import { streamWithBudget } from "../../../helpers/stream-utils.js";
@@ -21,33 +19,19 @@ import { createPerformanceReviewTool } from "./subagents/performance.js";
 import { createCodeQualityReviewTool } from "./subagents/code-quality.js";
 import type { PRContext } from "../../../context/types.js";
 
-// The orchestrator does NOT get leave_comment (sub-agents handle inline comments)
-// and does NOT get the sub-agent tools from the general pool.
-// It gets: investigation tools + sub-agent tools + submit_review.
-const ORCHESTRATOR_BLOCKED_TOOLS = new Set(["leave_comment", "submit_review"]);
-
 /**
  * Build the tool set for the orchestrator agent.
- * Includes: investigation tools (read_files, grep, etc.), sub-agent tools,
- * and submit_review. Excludes leave_comment.
+ * The orchestrator is a lightweight coordinator — it triages from the diff
+ * already in its context message and delegates to sub-agents.
+ * No investigation tools (read_files, grep, etc.) — sub-agents handle that.
  */
-/** Investigation tools (everything except leave_comment and submit_review) */
-function getInvestigationTools(): StructuredToolInterface[] {
-    return tools.filter(t => !ORCHESTRATOR_BLOCKED_TOOLS.has(t.name));
-}
-
-/**
- * Build the full tool set for the orchestrator agent.
- * Includes: investigation tools, sub-agent tools, and submit_review.
- */
-function getOrchestratorTools(context: PRContext, recursionLimit: number): StructuredToolInterface[] {
-    const subAgentTools = [
+function getOrchestratorTools(context: PRContext, recursionLimit: number) {
+    return [
         createSecurityReviewTool(context, recursionLimit),
         createPerformanceReviewTool(context, recursionLimit),
         createCodeQualityReviewTool(context, recursionLimit),
+        submitReviewTool,
     ];
-
-    return [...getInvestigationTools(), ...subAgentTools, submitReviewTool];
 }
 
 /**
@@ -97,7 +81,7 @@ export async function runOrchestratedReview(
         messages: allMessages,
         recursionLimit: effectiveRecursionLimit,
         wrapUpMessage: "IMPORTANT BUDGET NOTICE: You are past your budget limit. Submit your review immediately with submit_review using whatever findings you have so far. Mention in your summary that the review was cut short due to budget constraints.",
-        wrapUpTools: [...getInvestigationTools(), submitReviewTool],
+        wrapUpTools: [submitReviewTool],
     });
 
     logRunStats("Orchestrated review", stepCount);
