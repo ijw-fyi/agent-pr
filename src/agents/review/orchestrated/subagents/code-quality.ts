@@ -114,8 +114,9 @@ When all checklist items are resolved, provide your structured summary.
 ## IMPORTANT
 - You MUST do a **full code quality sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.
 - Report ANY substantive code quality issue you find, whether or not the orchestrator mentioned it.
-- Do NOT comment on security or performance (other specialists handle those).
+- Do NOT comment on bugs, security, or performance (other specialists handle those).
 - Do NOT comment on linter-catchable issues (see exclusion list above).
+- It is completely OK to find NO issues. If the changes don't touch your domain, say so and move on. Do NOT fabricate or stretch issues to justify your existence.
 `;
 
 /**

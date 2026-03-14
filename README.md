@@ -271,7 +271,7 @@ MCP_CONFIG: |
 | Mode | `REVIEW_MODE` | Description | Best for |
 |------|---------------|-------------|----------|
 | **Single** | `single` (default) | One agent handles the entire review end-to-end | Most PRs, lower cost |
-| **Orchestrated** | `orchestrated` | Three specialized sub-agents (security, performance, code quality) review in parallel, then a synthesizer submits a unified review | Large PRs, thorough domain-specific analysis |
+| **Orchestrated** | `orchestrated` | Four specialized sub-agents (bugs, security, performance, code quality) review in parallel, then a synthesizer submits a unified review | Large PRs, thorough domain-specific analysis |
 
 To enable orchestrated mode, set the `REVIEW_MODE` variable to `orchestrated` in your repo/org settings (Settings → Variables → Actions), or pass it as a workflow input:
 
@@ -284,15 +284,16 @@ jobs:
     secrets: inherit
 ```
 
-In orchestrated mode, three specialist agents run in parallel — each focused on its domain (🔒 security, ⚡ performance, 🧹 code quality). They leave inline comments independently, then a lightweight synthesizer combines their findings into a single review summary. This produces more thorough reviews but is slightly more expensive than single mode due to running multiple agents.
+In orchestrated mode, four specialist agents run in parallel — each focused on its domain (🐛 bugs, 🔒 security, ⚡ performance, 🧹 code quality). They leave inline comments independently, then a lightweight synthesizer combines their findings into a single review summary. This produces more thorough reviews but is slightly more expensive than single mode due to running multiple agents.
 
 ## What the Agent Reviews
 
 The agent focuses on **significant issues only**:
 
 - 🐛 **Bugs & Logic Errors** - Race conditions, null pointers, off-by-one errors
-- 🔒 **Security Vulnerabilities** - Injection attacks, auth issues, data exposure  
+- 🔒 **Security Vulnerabilities** - Injection attacks, auth issues, data exposure
 - ⚡ **Performance Problems** - N+1 queries, memory leaks, inefficient algorithms
+- 🧹 **Code Quality** - Duplicated code, dead code, error handling, API design
 
 It **ignores** minor style issues and pedantic best-practice suggestions.
 
