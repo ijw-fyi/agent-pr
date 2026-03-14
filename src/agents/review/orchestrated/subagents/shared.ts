@@ -77,6 +77,11 @@ ${context.preferences}
 `;
     }
 
+    content += `
+---
+END OF PR CONTEXT. Your review instructions follow in the next system message.
+`;
+
     return content;
 }
 
