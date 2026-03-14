@@ -201,6 +201,58 @@ export function getToolUsageStats(): { toolUsage: Record<string, number>; failed
 }
 
 /**
+ * Log run statistics to console.
+ * Consolidates the stats logging block used by all agent modes.
+ */
+export function logRunStats(label: string, stepCount: number): void {
+    const finalCost = getRunningCost();
+    const budget = getBudget();
+    const inputTokens = getRunningInputTokens();
+    const outputTokens = getRunningOutputTokens();
+    const totalTokens = inputTokens + outputTokens;
+    const cacheReadTokens = getRunningCacheReadTokens();
+    const cacheWriteTokens = getRunningCacheWriteTokens();
+    const cacheHitRate = inputTokens > 0 ? (cacheReadTokens / inputTokens * 100) : 0;
+    const { toolUsage: tu, failedToolUsage: ftu, totalCalls: totalToolCalls, totalFailed: totalFailedCalls } = getToolUsageStats();
+
+    console.log(`\n${"=".repeat(60)}`);
+    console.log(`${label} completed. Total steps: ${stepCount}`);
+    console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
+    console.log(`📊 Tokens: ${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output, ${totalTokens.toLocaleString()} total`);
+    console.log(`💾 Cache: ${cacheHitRate.toFixed(1)}% hit rate (${cacheReadTokens.toLocaleString()} read, ${cacheWriteTokens.toLocaleString()} write)`);
+    console.log(`🔧 Tool Usage: ${totalToolCalls} calls${totalFailedCalls > 0 ? ` (${totalFailedCalls} failed)` : ''}`);
+
+    if (totalToolCalls > 0) {
+        Object.entries(tu)
+            .sort(([, a], [, b]) => b - a)
+            .forEach(([name, count]) => {
+                const failed = ftu[name] || 0;
+                const failedStr = failed > 0 ? ` (⚠️ ${failed} failed)` : '';
+                console.log(`  - ${name}: ${count}${failedStr}`);
+            });
+    }
+
+    if (totalFailedCalls > 0) {
+        console.log(`\n❌ Failed Tools:`);
+        Object.entries(ftu)
+            .sort(([, a], [, b]) => b - a)
+            .forEach(([name, count]) => {
+                console.log(`  - ${name}: ${count} error(s)`);
+            });
+    }
+
+    const agentCostMap = getAgentCosts();
+    if (agentCostMap.size > 1) {
+        console.log(`\n📊 Per-agent cost breakdown:`);
+        for (const [name, costs] of agentCostMap) {
+            console.log(`  - ${name}: $${costs.cost.toFixed(4)} (${costs.inputTokens.toLocaleString()} in, ${costs.outputTokens.toLocaleString()} out)`);
+        }
+    }
+
+    console.log("=".repeat(60));
+}
+
+/**
  * Get the budget limit from env var, defaults to $1.00 USD
  */
 export function getBudget(): number {

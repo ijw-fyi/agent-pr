@@ -12,7 +12,7 @@ import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { tools } from "../../../tools/index.js";
 import { submitReviewTool } from "../../../tools/submit-review.js";
-import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, getRunningInputTokens, getRunningOutputTokens, getRunningCacheReadTokens, getRunningCacheWriteTokens, getToolUsageStats, getAgentCosts } from "../../../helpers/cached-model.js";
+import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, logRunStats } from "../../../helpers/cached-model.js";
 import { processChunk } from "../../../helpers/stream-utils.js";
 import { getVersion } from "../../../helpers/version.js";
 import { buildContextMessage } from "../index.js";
@@ -152,48 +152,5 @@ export async function runOrchestratedReview(
         }
     }
 
-    // Log final stats
-    const finalCost = getRunningCost();
-    const inputTokens = getRunningInputTokens();
-    const outputTokens = getRunningOutputTokens();
-    const totalTokens = inputTokens + outputTokens;
-    const cacheReadTokens = getRunningCacheReadTokens();
-    const cacheWriteTokens = getRunningCacheWriteTokens();
-    const cacheHitRate = inputTokens > 0 ? (cacheReadTokens / inputTokens * 100) : 0;
-    const { toolUsage, failedToolUsage, totalCalls: totalToolCalls, totalFailed: totalFailedCalls } = getToolUsageStats();
-
-    console.log(`\n${"=".repeat(60)}`);
-    console.log(`Orchestrated review completed. Total steps: ${stepCount}`);
-    console.log(`💰 Final cost: $${finalCost.toFixed(4)} / $${budget.toFixed(2)} budget`);
-    console.log(`📊 Tokens: ${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output, ${totalTokens.toLocaleString()} total`);
-    console.log(`💾 Cache: ${cacheHitRate.toFixed(1)}% hit rate (${cacheReadTokens.toLocaleString()} read, ${cacheWriteTokens.toLocaleString()} write)`);
-    console.log(`🔧 Tool Usage: ${totalToolCalls} calls${totalFailedCalls > 0 ? ` (${totalFailedCalls} failed)` : ''}`);
-
-    if (totalToolCalls > 0) {
-        Object.entries(toolUsage)
-            .sort(([, a], [, b]) => b - a)
-            .forEach(([name, count]) => {
-                const failed = failedToolUsage[name] || 0;
-                const failedStr = failed > 0 ? ` (⚠️ ${failed} failed)` : '';
-                console.log(`  - ${name}: ${count}${failedStr}`);
-            });
-    }
-
-    if (totalFailedCalls > 0) {
-        console.log(`\n❌ Failed Tools:`);
-        Object.entries(failedToolUsage)
-            .sort(([, a], [, b]) => b - a)
-            .forEach(([name, count]) => {
-                console.log(`  - ${name}: ${count} error(s)`);
-            });
-    }
-
-    const agentCostMap = getAgentCosts();
-    if (agentCostMap.size > 0) {
-        console.log(`\n📊 Per-agent cost breakdown:`);
-        for (const [name, costs] of agentCostMap) {
-            console.log(`  - ${name}: $${costs.cost.toFixed(4)} (${costs.inputTokens.toLocaleString()} in, ${costs.outputTokens.toLocaleString()} out)`);
-        }
-    }
-    console.log("=".repeat(60));
+    logRunStats("Orchestrated review", stepCount);
 }
