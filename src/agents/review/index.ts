@@ -244,7 +244,7 @@ function renderThread(thread: { root: ReviewComment; replies: ReviewComment[] })
  * Build a unified chronological timeline of all PR activity:
  * commits, conversation comments, review comment threads, and review summaries.
  */
-function buildActivityTimeline(context: PRContext): string {
+export function buildActivityTimeline(context: PRContext): string {
     type TimelineEvent = { timestamp: string; render: string };
     const events: TimelineEvent[] = [];
 

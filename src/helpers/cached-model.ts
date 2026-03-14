@@ -308,11 +308,15 @@ function patchOpenAIClient(client: any, agentName?: string) {
 
         // Inject cache_control into messages AND restore reasoning for assistant messages
         const modifiedMessages = messages.map((msg: any, index: number) => {
-            // Cache: system (index 0), first user (index 1), last user, and last tool message
+            // Cache breakpoints (max 4 allowed by Anthropic):
+            // 1. All system messages (1 for single agent, 2 for sub-agents with shared + domain prompts)
+            // 2. Last user message (most recent context / budget wrap-up)
+            // 3. Last tool message (most recent tool result)
+            // This enables cross-agent cache sharing: sub-agents share an identical
+            // SystemMessage[0] (diff), so agents 2+3 get cache hits on the prefix.
             const shouldCache =
-                (msg.role === "system" && index === 0) ||
-                (msg.role === "user" && index === 1) ||
-                (msg.role === "user" && index === lastUserIndex && index > 1) ||
+                (msg.role === "system") ||
+                (msg.role === "user" && index === lastUserIndex) ||
                 (msg.role === "tool" && index === lastToolIndex);
 
             let result = msg;

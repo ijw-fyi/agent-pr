@@ -9,9 +9,9 @@
  */
 
 import { createSubAgentTool } from "./shared.js";
-import type { PRContext } from "../../../../context/types.js";
 
-const CODE_QUALITY_PROMPT = `You are a code quality specialist reviewing code changes in a pull request. Your job is to find ALL substantive code quality issues, not just a sample.
+
+export const CODE_QUALITY_PROMPT = `You are a code quality specialist reviewing code changes in a pull request. Your job is to find ALL substantive code quality issues, not just a sample.
 
 ## Your Domain
 Focus exclusively on substantive code quality and tech debt concerns:
@@ -122,12 +122,12 @@ When all checklist items are resolved, provide your structured summary.
  * Create the code quality review sub-agent tool.
  * The orchestrator calls this tool to run a focused code quality analysis.
  */
-export function createCodeQualityReviewTool(context: PRContext, recursionLimit: number) {
+export function createCodeQualityReviewTool(sharedSystemContent: string, recursionLimit: number) {
     return createSubAgentTool(
         "code_quality_review",
         "Run a specialized code quality & tech debt review on the specified files. The sub-agent will investigate duplicated code, dead code, maintainability issues, error handling, and API design. It can leave inline comments on issues it finds. Returns a structured summary of findings. Does NOT flag linter-catchable issues.",
         CODE_QUALITY_PROMPT,
-        context,
+        sharedSystemContent,
         recursionLimit,
     );
 }

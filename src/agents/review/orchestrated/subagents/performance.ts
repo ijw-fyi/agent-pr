@@ -6,9 +6,9 @@
  */
 
 import { createSubAgentTool } from "./shared.js";
-import type { PRContext } from "../../../../context/types.js";
 
-const PERFORMANCE_PROMPT = `You are a performance specialist reviewing code changes in a pull request. Your job is to find ALL performance issues, not just a sample.
+
+export const PERFORMANCE_PROMPT = `You are a performance specialist reviewing code changes in a pull request. Your job is to find ALL performance issues, not just a sample.
 
 ## Your Domain
 Focus exclusively on performance concerns:
@@ -96,12 +96,12 @@ When all checklist items are resolved, provide your structured summary.
  * Create the performance review sub-agent tool.
  * The orchestrator calls this tool to run a focused performance analysis.
  */
-export function createPerformanceReviewTool(context: PRContext, recursionLimit: number) {
+export function createPerformanceReviewTool(sharedSystemContent: string, recursionLimit: number) {
     return createSubAgentTool(
         "performance_review",
         "Run a specialized performance review on the specified files. The sub-agent will investigate N+1 queries, memory leaks, algorithmic complexity, and other performance concerns. It can leave inline comments on issues it finds. Returns a structured summary of findings.",
         PERFORMANCE_PROMPT,
-        context,
+        sharedSystemContent,
         recursionLimit,
     );
 }

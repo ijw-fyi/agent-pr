@@ -12,7 +12,7 @@ import { z } from "zod";
 import { tools } from "../../../../tools/index.js";
 import { getAgentCosts } from "../../../../helpers/cached-model.js";
 import { streamWithBudget } from "../../../../helpers/stream-utils.js";
-import { truncateDiffPart } from "../../index.js";
+import { truncateDiff, buildActivityTimeline } from "../../index.js";
 import type { PRContext } from "../../../../context/types.js";
 
 // Sub-agents can leave inline comments but cannot submit the final review
@@ -27,64 +27,72 @@ export function getSubAgentTools(): StructuredToolInterface[] {
 }
 
 /**
- * Filter a diff string to only include the specified files.
- * Returns the filtered diff with per-file truncation applied.
+ * Build the shared system content that is identical across all sub-agents.
+ * This goes into SystemMessage[0] so Anthropic's prefix cache is shared —
+ * agent 1 writes the cache, agents 2+3 get cache hits on the diff.
  */
-function filterDiffToFiles(diff: string, files: string[]): string {
-    const fileSet = new Set(files);
-    const parts = diff.split(/(?=^diff --git )/m);
-
-    return parts.filter(part => {
-        if (!part.trim()) return true;
-        const match = part.split('\n')[0].match(/diff --git a\/(.*?) b\//);
-        return match ? fileSet.has(match[1]) : false;
-    }).map(truncateDiffPart).join('');
-}
-
-/**
- * Build the context message for a sub-agent.
- * Includes PR metadata, the filtered diff (only assigned files), context hints
- * from the orchestrator, and repository guidelines.
- */
-export function buildSubAgentContext(
-    context: PRContext,
-    contextHints: string,
-    files: string[],
-): string {
-    const filteredDiff = filterDiffToFiles(context.diff, files);
-
-    let message = `# Sub-Agent Review Task
+export function buildSharedSystemContent(context: PRContext): string {
+    let content = `# Pull Request Under Review
 
 ## PR Information
 - **Title**: ${context.title}
 - **Author**: ${context.author}
 - **Branch**: ${context.headBranch} → ${context.baseBranch}
+- **Your Identity**: You are \`${context.botLogin}\`. Comments and reviews by this user in the timeline below are from your previous runs.
 
 ## PR Description
 ${context.description || "(No description provided)"}
 
-## Orchestrator Context
-${contextHints}
-
-## Files to Review (${files.length} files)
-${files.map((f, i) => `${i + 1}. ${f}`).join("\n")}
-
 ## Changed Files Diff
 \`\`\`diff
-${filteredDiff}
+${truncateDiff(context.diff)}
 \`\`\`
 `;
 
+    const timeline = buildActivityTimeline(context);
+    if (timeline) {
+        content += `
+## PR Activity Timeline
+${timeline}
+`;
+    }
+
     if (context.claudeMd) {
-        message += `
+        content += `
 ## Repository Guidelines (CLAUDE.md)
+Treat these as project conventions and respect them when reviewing.
 \`\`\`
 ${context.claudeMd}
 \`\`\`
 `;
     }
 
-    return message;
+    if (context.preferences) {
+        content += `
+## User Preferences
+The following preferences have been learned from previous interactions. Please respect these when reviewing:
+\`\`\`
+${context.preferences}
+\`\`\`
+`;
+    }
+
+    return content;
+}
+
+/**
+ * Build the per-agent user message with context hints and file assignments.
+ */
+function buildSubAgentUserMessage(contextHints: string, files: string[]): string {
+    return `## Review Task
+
+### Context from Orchestrator
+${contextHints}
+
+### Files to Review (${files.length} files)
+${files.map((f, i) => `${i + 1}. ${f}`).join("\n")}
+
+Begin your review. Follow the phases in your system prompt exactly.`;
 }
 
 /**
@@ -92,14 +100,18 @@ ${context.claudeMd}
  *
  * Creates a fresh model and ReAct agent, streams it with budget monitoring,
  * and extracts the last AI message content as the result.
+ *
+ * @param onFirstChunk — optional callback fired on the first streaming chunk,
+ *   used to signal that the prompt cache is warm so other agents can start.
  */
 export async function runSubAgent(
     name: string,
     systemPrompt: string,
-    context: PRContext,
+    sharedSystemContent: string,
     contextHints: string,
     files: string[],
     recursionLimit: number,
+    onFirstChunk?: () => void,
 ): Promise<string> {
     console.log(`\n::group::🔍 Sub-agent: ${name} (${files.length} files, recursion limit: ${recursionLimit})`);
     console.log(`Files: ${files.join(", ")}`);
@@ -107,13 +119,14 @@ export async function runSubAgent(
     console.log("::endgroup::");
 
     const subAgentTools = getSubAgentTools();
-    const contextMessage = buildSubAgentContext(context, contextHints, files);
     const allMessages = [
-        new SystemMessage(systemPrompt),
-        new HumanMessage(contextMessage),
+        new SystemMessage(sharedSystemContent),                          // index 0: shared, cached
+        new SystemMessage(systemPrompt),                                 // index 1: domain-specific
+        new HumanMessage(buildSubAgentUserMessage(contextHints, files)), // index 2: per-invocation
     ];
 
     let lastAIContent = "";
+    let firstChunkFired = false;
 
     const { stepCount } = await streamWithBudget({
         agentName: name,
@@ -122,6 +135,10 @@ export async function runSubAgent(
         recursionLimit,
         wrapUpMessage: "IMPORTANT BUDGET NOTICE: You are past your budget limit. Finish your current investigation item, then immediately provide your summary. Do not start investigating new items.",
         onChunk: (chunk) => {
+            if (!firstChunkFired && onFirstChunk) {
+                firstChunkFired = true;
+                onFirstChunk();
+            }
             if (chunk.agent?.messages) {
                 for (const msg of chunk.agent.messages) {
                     if (msg instanceof AIMessage) {
@@ -146,17 +163,20 @@ export async function runSubAgent(
  * Factory for creating sub-agent tools.
  * All sub-agent tools share the same schema and runSubAgent call pattern —
  * only name, description, and prompt differ.
+ *
+ * Retained for potential future use (e.g., a dynamic orchestrator that
+ * selectively invokes agents). Currently not used by the parallel pipeline.
  */
 export function createSubAgentTool(
     name: string,
     description: string,
     prompt: string,
-    context: PRContext,
+    sharedSystemContent: string,
     recursionLimit: number,
 ): StructuredToolInterface {
     return tool(
         async ({ context: contextHints, files }) => {
-            return runSubAgent(name, prompt, context, contextHints, files, recursionLimit);
+            return runSubAgent(name, prompt, sharedSystemContent, contextHints, files, recursionLimit);
         },
         {
             name,
