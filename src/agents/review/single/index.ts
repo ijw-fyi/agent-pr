@@ -5,14 +5,13 @@
  * inline comments, and final submission. This is the default review mode.
  */
 
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import { getSystemPrompt } from "./prompt.js";
 import { tools } from "../../../tools/index.js";
 import { isWebSearchAvailable } from "../../../tools/search-web.js";
 import type { PRContext } from "../../../context/types.js";
-import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, logRunStats } from "../../../helpers/cached-model.js";
-import { processChunk } from "../../../helpers/stream-utils.js";
+import { resetRunningCost, getBudget, logRunStats } from "../../../helpers/cached-model.js";
+import { streamWithBudget } from "../../../helpers/stream-utils.js";
 import { getVersion } from "../../../helpers/version.js";
 import { buildContextMessage } from "../index.js";
 
@@ -27,15 +26,6 @@ export async function runSingleReview(
     resetRunningCost();
     const budget = getBudget();
     console.log(`💵 Budget: $${budget.toFixed(2)}`);
-
-    // Create the model with OpenRouter backend and prompt caching
-    const model = createCachedChatOpenAI("single_review");
-
-    // Create the React agent
-    const agent = createReactAgent({
-        llm: model,
-        tools,
-    });
 
     // Build the initial context message
     const contextMessage = buildContextMessage(context);
@@ -57,76 +47,19 @@ export async function runSingleReview(
     console.log(contextMessage);
     console.log("─".repeat(60));
 
-    // Stream the agent execution
-    let stepCount = 0;
-    const allMessages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+    // Stream the agent execution with budget monitoring
+    const allMessages = [
         new SystemMessage(getSystemPrompt(isWebSearchAvailable())),
         new HumanMessage(contextMessage),
     ];
 
-    // Use AbortController to allow proper cancellation of the stream
-    const abortController = new AbortController();
-
-    const stream = await agent.stream(
-        { messages: allMessages },
-        { recursionLimit, signal: abortController.signal }
-    );
-
-    let budgetExceeded = false;
-    let abortedForBudget = false;
-    for await (const chunk of stream) {
-        stepCount++;
-        processChunk(chunk, stepCount, allMessages);
-
-        // Check budget after each step (only flag once)
-        if (!budgetExceeded && isOverBudget()) {
-            budgetExceeded = true;
-            const cost = getRunningCost();
-            console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - will wrap up after current tool calls`);
-        }
-
-        // If budget exceeded and we just got tool results, inject wrap-up and break
-        // This ensures the LLM sees the budget notice before making more tool calls
-        if (budgetExceeded && chunk.tools?.messages) {
-            console.log("\n📝 Injecting wrap-up message after tool results...");
-            allMessages.push(new HumanMessage("IMPORTANT BUDGET NOTICE: You are past your budget limit. Finish investigating your current checklist item, then submit your review immediately with submit_review. Skip remaining checklist items. Mention in your summary that the review was cut short due to budget constraints."));
-            // Abort the stream to stop background processing
-            console.log("🛑 Aborting original stream...");
-            abortedForBudget = true;
-            abortController.abort();
-            break;
-        }
-    }
-
-    // If we aborted the stream for budget, create a fresh agent for wrap-up
-    // (If the agent finished naturally after budget exceeded, no wrap-up needed)
-    if (abortedForBudget) {
-        console.log("\n📝 Creating fresh model and agent for wrap-up...");
-
-        // Create a completely fresh model instance to avoid any state issues
-        const wrapUpModel = createCachedChatOpenAI("single_review");
-
-        // Create a new agent instance with the fresh model
-        const wrapUpAgent = createReactAgent({
-            llm: wrapUpModel,
-            tools,
-        });
-
-        try {
-            const wrapUpStream = await wrapUpAgent.stream(
-                { messages: allMessages },
-                { recursionLimit: 20 }
-            );
-
-            for await (const chunk of wrapUpStream) {
-                stepCount++;
-                processChunk(chunk, stepCount, allMessages);
-            }
-            console.log("📝 Wrap-up complete");
-        } catch (error) {
-            console.error("Wrap-up error:", error);
-        }
-    }
+    const { stepCount } = await streamWithBudget({
+        agentName: "single_review",
+        tools,
+        messages: allMessages,
+        recursionLimit: recursionLimit ?? 100,
+        wrapUpMessage: "IMPORTANT BUDGET NOTICE: You are past your budget limit. Finish investigating your current checklist item, then submit your review immediately with submit_review. Skip remaining checklist items. Mention in your summary that the review was cut short due to budget constraints.",
+    });
 
     logRunStats("Review", stepCount);
 }

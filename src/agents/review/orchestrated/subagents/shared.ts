@@ -5,12 +5,11 @@
  * that each sub-agent tool delegates to.
  */
 
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { tools } from "../../../../tools/index.js";
-import { createCachedChatOpenAI, isOverBudget, getRunningCost, getBudget, getAgentCosts } from "../../../../helpers/cached-model.js";
-import { processChunk } from "../../../../helpers/stream-utils.js";
+import { getAgentCosts } from "../../../../helpers/cached-model.js";
+import { streamWithBudget } from "../../../../helpers/stream-utils.js";
 import { truncateDiff } from "../../index.js";
 import type { PRContext } from "../../../../context/types.js";
 
@@ -111,89 +110,32 @@ export async function runSubAgent(
     console.log(`Context: ${contextHints.substring(0, 200)}${contextHints.length > 200 ? "..." : ""}`);
     console.log("::endgroup::");
 
-    const model = createCachedChatOpenAI(name);
     const subAgentTools = getSubAgentTools();
-    const agent = createReactAgent({ llm: model, tools: subAgentTools });
-
     const contextMessage = buildSubAgentContext(context, contextHints, files);
-    const allMessages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+    const allMessages = [
         new SystemMessage(systemPrompt),
         new HumanMessage(contextMessage),
     ];
 
-    const abortController = new AbortController();
-    const stream = await agent.stream(
-        { messages: allMessages },
-        { recursionLimit, signal: abortController.signal },
-    );
-
-    let stepCount = 0;
     let lastAIContent = "";
-    let budgetExceeded = false;
-    let abortedForBudget = false;
-    const budget = getBudget();
 
-    for await (const chunk of stream) {
-        stepCount++;
-        processChunk(chunk, stepCount, allMessages);
-
-        // Capture the latest AI message text
-        if (chunk.agent?.messages) {
-            for (const msg of chunk.agent.messages) {
-                if (msg instanceof AIMessage) {
-                    const content = typeof msg.content === "string" ? msg.content.trim() : "";
-                    if (content) lastAIContent = content;
-                }
-            }
-        }
-
-        // Budget check
-        if (!budgetExceeded && isOverBudget()) {
-            budgetExceeded = true;
-            const cost = getRunningCost();
-            console.log(`\n⚠️ [${name}] Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - wrapping up`);
-        }
-
-        if (budgetExceeded && chunk.tools?.messages) {
-            console.log(`\n📝 [${name}] Injecting wrap-up message after tool results...`);
-            allMessages.push(new HumanMessage(
-                "IMPORTANT BUDGET NOTICE: You are past your budget limit. Finish your current investigation item, then immediately provide your summary. Do not start investigating new items."
-            ));
-            abortedForBudget = true;
-            abortController.abort();
-            break;
-        }
-    }
-
-    // If we aborted the stream for budget, run a wrap-up pass
-    // (If the agent finished naturally after budget exceeded, no wrap-up needed)
-    if (abortedForBudget) {
-        console.log(`\n📝 [${name}] Running wrap-up pass...`);
-        const wrapUpModel = createCachedChatOpenAI(name);
-        const wrapUpAgent = createReactAgent({ llm: wrapUpModel, tools: subAgentTools });
-
-        try {
-            const wrapUpStream = await wrapUpAgent.stream(
-                { messages: allMessages },
-                { recursionLimit: 20 },
-            );
-
-            for await (const chunk of wrapUpStream) {
-                stepCount++;
-                processChunk(chunk, stepCount, allMessages);
-                if (chunk.agent?.messages) {
-                    for (const msg of chunk.agent.messages) {
-                        if (msg instanceof AIMessage) {
-                            const content = typeof msg.content === "string" ? msg.content.trim() : "";
-                            if (content) lastAIContent = content;
-                        }
+    const { stepCount } = await streamWithBudget({
+        agentName: name,
+        tools: subAgentTools,
+        messages: allMessages,
+        recursionLimit,
+        wrapUpMessage: "IMPORTANT BUDGET NOTICE: You are past your budget limit. Finish your current investigation item, then immediately provide your summary. Do not start investigating new items.",
+        onChunk: (chunk) => {
+            if (chunk.agent?.messages) {
+                for (const msg of chunk.agent.messages) {
+                    if (msg instanceof AIMessage) {
+                        const content = typeof msg.content === "string" ? msg.content.trim() : "";
+                        if (content) lastAIContent = content;
                     }
                 }
             }
-        } catch (error) {
-            console.error(`[${name}] Wrap-up error:`, error);
-        }
-    }
+        },
+    });
 
     const costs = getAgentCosts().get(name);
     if (costs) {

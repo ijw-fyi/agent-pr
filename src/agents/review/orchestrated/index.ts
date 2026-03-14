@@ -7,13 +7,12 @@
  * their findings and submits the final review.
  */
 
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { tools } from "../../../tools/index.js";
 import { submitReviewTool } from "../../../tools/submit-review.js";
-import { createCachedChatOpenAI, resetRunningCost, isOverBudget, getRunningCost, getBudget, logRunStats } from "../../../helpers/cached-model.js";
-import { processChunk } from "../../../helpers/stream-utils.js";
+import { resetRunningCost, getBudget, logRunStats } from "../../../helpers/cached-model.js";
+import { streamWithBudget } from "../../../helpers/stream-utils.js";
 import { getVersion } from "../../../helpers/version.js";
 import { buildContextMessage } from "../index.js";
 import { ORCHESTRATOR_PROMPT } from "./prompt.js";
@@ -69,18 +68,9 @@ export async function runOrchestratedReview(
     console.log(`Recursion Limit: ${effectiveRecursionLimit} (orchestrator and sub-agents)`);
     console.log("::endgroup::");
 
-    // Create the model
-    const model = createCachedChatOpenAI("orchestrator");
-
     // Build orchestrator tools
     const orchestratorTools = getOrchestratorTools(context, effectiveRecursionLimit);
     console.log(`Orchestrator tools: ${orchestratorTools.map(t => t.name).join(", ")}`);
-
-    // Create the orchestrator agent
-    const agent = createReactAgent({
-        llm: model,
-        tools: orchestratorTools,
-    });
 
     // Build the context message (same as single agent)
     const contextMessage = buildContextMessage(context);
@@ -90,67 +80,19 @@ export async function runOrchestratedReview(
     console.log(contextMessage.substring(0, 2000) + (contextMessage.length > 2000 ? "\n... (truncated for log)" : ""));
     console.log("─".repeat(60));
 
-    // Stream the orchestrator agent
-    let stepCount = 0;
-    const allMessages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+    // Stream the orchestrator agent with budget monitoring
+    const allMessages = [
         new SystemMessage(ORCHESTRATOR_PROMPT),
         new HumanMessage(contextMessage),
     ];
 
-    const abortController = new AbortController();
-    const stream = await agent.stream(
-        { messages: allMessages },
-        { recursionLimit: effectiveRecursionLimit, signal: abortController.signal },
-    );
-
-    let budgetExceeded = false;
-    let abortedForBudget = false;
-    for await (const chunk of stream) {
-        stepCount++;
-        processChunk(chunk, stepCount, allMessages);
-
-        if (!budgetExceeded && isOverBudget()) {
-            budgetExceeded = true;
-            const cost = getRunningCost();
-            console.log(`\n⚠️ Budget exceeded ($${cost.toFixed(4)} / $${budget.toFixed(2)}) - will wrap up after current tool calls`);
-        }
-
-        if (budgetExceeded && chunk.tools?.messages) {
-            console.log("\n📝 Injecting wrap-up message after tool results...");
-            allMessages.push(new HumanMessage(
-                "IMPORTANT BUDGET NOTICE: You are past your budget limit. Submit your review immediately with submit_review using whatever findings you have so far. Mention in your summary that the review was cut short due to budget constraints."
-            ));
-            abortedForBudget = true;
-            abortController.abort();
-            break;
-        }
-    }
-
-    // If we aborted the stream for budget, create a fresh agent for wrap-up
-    // (If the agent finished naturally after budget exceeded, no wrap-up needed)
-    if (abortedForBudget) {
-        console.log("\n📝 Creating fresh agent for wrap-up...");
-        const wrapUpModel = createCachedChatOpenAI("orchestrator");
-        const wrapUpAgent = createReactAgent({
-            llm: wrapUpModel,
-            tools: orchestratorTools,
-        });
-
-        try {
-            const wrapUpStream = await wrapUpAgent.stream(
-                { messages: allMessages },
-                { recursionLimit: 20 },
-            );
-
-            for await (const chunk of wrapUpStream) {
-                stepCount++;
-                processChunk(chunk, stepCount, allMessages);
-            }
-            console.log("📝 Wrap-up complete");
-        } catch (error) {
-            console.error("Wrap-up error:", error);
-        }
-    }
+    const { stepCount } = await streamWithBudget({
+        agentName: "orchestrator",
+        tools: orchestratorTools,
+        messages: allMessages,
+        recursionLimit: effectiveRecursionLimit,
+        wrapUpMessage: "IMPORTANT BUDGET NOTICE: You are past your budget limit. Submit your review immediately with submit_review using whatever findings you have so far. Mention in your summary that the review was cut short due to budget constraints.",
+    });
 
     logRunStats("Orchestrated review", stepCount);
 }
