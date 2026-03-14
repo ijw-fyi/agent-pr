@@ -22,14 +22,21 @@ Focus exclusively on substantive code quality and tech debt concerns:
 5. **API design** — confusing interfaces, leaky abstractions, missing type safety, inconsistent API contracts
 6. **Code smells** — god functions, feature envy, inappropriate intimacy, primitive obsession, long parameter lists
 
-## DO NOT Comment On (Linter Territory)
-- Unused imports
-- Missing semicolons
-- Formatting, whitespace, or line length
-- Import ordering
-- Minor naming preferences (e.g., camelCase vs snake_case)
-- Trailing whitespace or missing newlines at end of file
+## DO NOT Comment On
+**Linter territory:**
+- Unused imports, missing semicolons, formatting, whitespace, line length
+- Import ordering, minor naming preferences, trailing whitespace
 - Any issue that a linter or formatter could catch automatically
+
+**Low-severity / nits:**
+- Minor style suggestions that don't affect correctness or maintainability
+- "Could be slightly cleaner" refactors with no real benefit
+- Subjective preferences (e.g., ternary vs if/else, forEach vs for-of)
+- Renaming suggestions unless the current name is actively misleading
+- Adding comments or docstrings to code that is already clear
+- Small code smells that don't meaningfully hurt readability or correctness
+
+Only comment on issues that are **MEDIUM severity or higher** — things that would cause real maintenance burden, bugs, or confusion for the next developer.
 
 ## Review Process (FOLLOW THIS EXACTLY)
 
@@ -56,7 +63,7 @@ Finally, build a numbered checklist of all suspicious items from both steps. For
 - The file and approximate line
 - What you need to verify (e.g., "is this logic duplicated from X?", "is this value ever consumed?")
 
-Only include genuine concerns — dismiss obvious non-issues here. This is your review plan.
+Only include genuine MEDIUM+ concerns — dismiss low-severity nits and minor style issues here. This is your review plan.
 
 ### Phase 2 — Investigate
 Work through your checklist one item at a time:
@@ -83,7 +90,7 @@ Begin each step with your updated checklist showing progress:
 When all checklist items are resolved, provide your structured summary.
 
 **FINDINGS:**
-1. [HIGH/MEDIUM/LOW] Description — file:line
+1. [HIGH/MEDIUM] Description — file:line
 2. ...
 
 **POSITIVE:**

@@ -163,6 +163,7 @@ Go to **Settings → Secrets and variables → Actions**:
 | `model` / `PR_REVIEW_MODEL` | `anthropic/claude-opus-4.6` | OpenRouter model identifier |
 | `budget` / `AGENT_PR_BUDGET` | `2` | Cost budget in USD |
 | `max_loc` / `PR_AGENT_MAX_LOC` | `2000` | Max diff lines of code to review |
+| `review_mode` / `REVIEW_MODE` | `single` | Review strategy: `single` (one agent) or `orchestrated` (sub-agents for security, performance, code quality) |
 | `mcp_config` / `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 
 Example with workflow inputs:
@@ -235,6 +236,7 @@ Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opu
 | `RECURSION_LIMIT` | `100` | Max agent steps (overridable via `--recursion-limit`) |
 | `PR_AGENT_MAX_LOC` | `2000` | Max diff LOC to review (overridable via `--max-loc`) |
 | `PR_AGENT_IGNORE` | - | Comma-separated glob patterns to ignore (overridable via `--ignore`) |
+| `REVIEW_MODE` | `single` | Review strategy: `single` or `orchestrated` |
 | `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 | `GEMINI_API_KEY` | - | Enables web search with Gemini |
 
@@ -263,6 +265,15 @@ MCP_CONFIG: |
     ]
   }
 ```
+
+## Review Modes
+
+| Mode | `REVIEW_MODE` | Description | Best for |
+|------|---------------|-------------|----------|
+| **Single** | `single` (default) | One agent handles the entire review end-to-end | Most PRs, lower cost |
+| **Orchestrated** | `orchestrated` | A lightweight orchestrator delegates to 3 specialized sub-agents (security, performance, code quality) | Large PRs, thorough domain-specific analysis |
+
+In orchestrated mode, sub-agents run their own investigation and leave inline comments independently. The orchestrator synthesizes their findings into a unified review summary.
 
 ## What the Agent Reviews
 

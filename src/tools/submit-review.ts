@@ -76,10 +76,11 @@ ${toolsTable || '| (none) | - |'}
 ${(() => {
                 const agentCostMap = getAgentCosts();
                 if (agentCostMap.size < 2) return '';
-                const lines = Array.from(agentCostMap.entries())
+                const rows = Array.from(agentCostMap.entries())
                     .sort(([, a], [, b]) => b.cost - a.cost)
-                    .map(([name, c]) => `  - ${name}: $${c.cost.toFixed(4)} (${c.inputTokens.toLocaleString()} in, ${c.outputTokens.toLocaleString()} out)`);
-                return `\n📊 **Per-agent cost breakdown:**\n\`\`\`\n${lines.join('\n')}\n\`\`\`\n`;
+                    .map(([name, c]) => `| ${name} | $${c.cost.toFixed(4)} | ${c.inputTokens.toLocaleString()} | ${c.outputTokens.toLocaleString()} |`)
+                    .join('\n');
+                return `\n📊 **Per-agent cost breakdown**\n\n| Agent | Cost | Input Tokens | Output Tokens |\n|-------|------|-------------|---------------|\n${rows}\n`;
             })()}
 </details>`;
 
