@@ -31,10 +31,16 @@ Focus exclusively on substantive code quality and tech debt concerns:
 **Low-severity / nits:**
 - Minor style suggestions that don't affect correctness or maintainability
 - "Could be slightly cleaner" refactors with no real benefit
+- Suggesting rewrites "for clarity" or "for readability" when the code is functionally correct and understandable
 - Subjective preferences (e.g., ternary vs if/else, forEach vs for-of)
 - Renaming suggestions unless the current name is actively misleading
 - Adding comments or docstrings to code that is already clear
 - Small code smells that don't meaningfully hurt readability or correctness
+
+**Over-DRY / premature abstraction:**
+- Not everything needs to be DRY. Do NOT flag duplication unless it is genuinely harmful (e.g., a bug fix would need to be applied in multiple places). A few similar lines of code are often better than a premature abstraction that couples unrelated concerns or makes future customization harder.
+- Do NOT suggest extracting shared helpers, base classes, or abstractions unless the duplication is substantial AND the duplicated code is unlikely to diverge.
+- **Exception: types and interfaces.** Duplicated type definitions SHOULD be flagged — having the same type defined in multiple places means a change in one place won't produce type errors in the others, leading to silent drift and bugs.
 
 Only comment on issues that are **MEDIUM severity or higher** — things that would cause real maintenance burden, bugs, or confusion for the next developer.
 
