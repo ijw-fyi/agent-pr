@@ -6,9 +6,9 @@
  */
 
 import { createSubAgentTool } from "./shared.js";
-import type { PRContext } from "../../../../context/types.js";
 
-const SECURITY_PROMPT = `You are a security specialist reviewing code changes in a pull request. Your job is to find ALL security issues, not just a sample.
+
+export const SECURITY_PROMPT = `You are a security specialist reviewing code changes in a pull request. Your job is to find ALL security issues, not just a sample.
 
 ## Your Domain
 Focus exclusively on security and safety concerns:
@@ -96,12 +96,12 @@ When all checklist items are resolved, provide your structured summary.
  * Create the security review sub-agent tool.
  * The orchestrator calls this tool to run a focused security analysis.
  */
-export function createSecurityReviewTool(context: PRContext, recursionLimit: number) {
+export function createSecurityReviewTool(sharedSystemContent: string, recursionLimit: number) {
     return createSubAgentTool(
         "security_review",
         "Run a specialized security & safety review on the specified files. The sub-agent will investigate injection vulnerabilities, auth issues, data exposure, and other security concerns. It can leave inline comments on issues it finds. Returns a structured summary of findings.",
         SECURITY_PROMPT,
-        context,
+        sharedSystemContent,
         recursionLimit,
     );
 }

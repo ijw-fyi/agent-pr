@@ -1,10 +1,13 @@
 /**
  * Orchestrated review mode.
  *
- * A main orchestrator agent triages the PR and delegates to
- * specialized sub-agents (security, performance, code quality).
- * Sub-agents leave inline comments; the orchestrator synthesizes
- * their findings and submits the final review.
+ * Runs three specialized sub-agents in parallel (security, performance,
+ * code quality), then a lightweight synthesizer combines their findings
+ * and submits the final review.
+ *
+ * Cache optimization: all sub-agents share an identical SystemMessage[0]
+ * containing the diff. Agent 1 starts first to warm the Anthropic prompt
+ * cache; agents 2+3 start once the first chunk arrives (cache hit).
  */
 
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
@@ -12,30 +15,28 @@ import { submitReviewTool } from "../../../tools/submit-review.js";
 import { resetRunningCost, getBudget, logRunStats } from "../../../helpers/cached-model.js";
 import { streamWithBudget } from "../../../helpers/stream-utils.js";
 import { getVersion } from "../../../helpers/version.js";
-import { buildContextMessage } from "../index.js";
-import { ORCHESTRATOR_PROMPT } from "./prompt.js";
-import { createSecurityReviewTool } from "./subagents/security.js";
-import { createPerformanceReviewTool } from "./subagents/performance.js";
-import { createCodeQualityReviewTool } from "./subagents/code-quality.js";
+import { findReviewCommentBody, stripOverrideFlags } from "../../../helpers/overrides.js";
+import { extractChangedFiles } from "../index.js";
+import { SYNTHESIZER_PROMPT } from "./prompt.js";
+import { SECURITY_PROMPT } from "./subagents/security.js";
+import { PERFORMANCE_PROMPT } from "./subagents/performance.js";
+import { CODE_QUALITY_PROMPT } from "./subagents/code-quality.js";
+import { buildSharedSystemContent, runSubAgent } from "./subagents/shared.js";
 import type { PRContext } from "../../../context/types.js";
 
 /**
- * Build the tool set for the orchestrator agent.
- * The orchestrator is a lightweight coordinator — it triages from the diff
- * already in its context message and delegates to sub-agents.
- * No investigation tools (read_files, grep, etc.) — sub-agents handle that.
+ * Extract user instructions from the /review trigger comment, if any.
+ * Strips the /review command prefix and any override flags.
  */
-function getOrchestratorTools(context: PRContext, recursionLimit: number) {
-    return [
-        createSecurityReviewTool(context, recursionLimit),
-        createPerformanceReviewTool(context, recursionLimit),
-        createCodeQualityReviewTool(context, recursionLimit),
-        submitReviewTool,
-    ];
+function extractUserInstructions(context: PRContext): string {
+    const reviewBody = findReviewCommentBody(context.conversation);
+    if (!reviewBody) return "";
+    const withoutCommand = reviewBody.replace(/^\/review\s*/, "");
+    return stripOverrideFlags(withoutCommand);
 }
 
 /**
- * Run the orchestrated review with sub-agents.
+ * Run the orchestrated review with parallel sub-agents + synthesizer.
  */
 export async function runOrchestratedReview(
     context: PRContext,
@@ -48,41 +49,100 @@ export async function runOrchestratedReview(
 
     console.log("::group::🚀 Orchestrated PR Review Starting");
     console.log(`Version: ${getVersion()}`);
-    console.log(`Mode: orchestrated`);
+    console.log(`Mode: orchestrated (parallel)`);
     console.log(`Model: ${process.env.MODEL}`);
     console.log(`PR: ${context.owner}/${context.repo}#${context.prNumber}`);
     console.log(`SHA: ${process.env.HEAD_SHA || 'unknown'}`);
     console.log(`Branch: ${context.headBranch} → ${context.baseBranch}`);
     console.log(`Budget: $${budget.toFixed(2)}`);
-    console.log(`Recursion Limit: ${effectiveRecursionLimit} (orchestrator and sub-agents)`);
+    console.log(`Recursion Limit: ${effectiveRecursionLimit} (per sub-agent)`);
     console.log("::endgroup::");
 
-    // Build orchestrator tools
-    const orchestratorTools = getOrchestratorTools(context, effectiveRecursionLimit);
-    console.log(`Orchestrator tools: ${orchestratorTools.map(t => t.name).join(", ")}`);
+    // Build shared system content once — cached and reused across all sub-agents
+    const sharedSystemContent = buildSharedSystemContent(context);
 
-    // Build the context message (same as single agent)
-    const contextMessage = buildContextMessage(context);
+    // Extract changed files and user instructions
+    const changedFiles = extractChangedFiles(context.diff);
+    const userInstructions = extractUserInstructions(context);
+    const contextHints = userInstructions
+        ? `User instructions: ${userInstructions}`
+        : "No specific instructions — do a thorough review of your domain.";
 
-    console.log("\n📝 Orchestrator Context Message:");
-    console.log("─".repeat(60));
-    console.log(contextMessage.substring(0, 2000) + (contextMessage.length > 2000 ? "\n... (truncated for log)" : ""));
-    console.log("─".repeat(60));
+    console.log(`\n📋 Changed files (${changedFiles.length}): ${changedFiles.join(", ")}`);
+    if (userInstructions) {
+        console.log(`📝 User instructions: ${userInstructions}`);
+    }
 
-    // Stream the orchestrator agent with budget monitoring
-    const allMessages = [
-        new SystemMessage(ORCHESTRATOR_PROMPT),
-        new HumanMessage(contextMessage),
-    ];
+    // --- Run sub-agents with staggered start for cache optimization ---
+    // Agent 1 starts immediately and warms the prompt cache.
+    // Agents 2+3 start once agent 1's first chunk arrives (cache hit).
 
-    const { stepCount } = await streamWithBudget({
-        agentName: "orchestrator",
-        tools: orchestratorTools,
-        messages: allMessages,
-        recursionLimit: effectiveRecursionLimit,
-        wrapUpMessage: "IMPORTANT BUDGET NOTICE: You are past your budget limit. Submit your review immediately with submit_review using whatever findings you have so far. Mention in your summary that the review was cut short due to budget constraints.",
-        wrapUpTools: [submitReviewTool],
+    let resolveCacheReady: () => void;
+    const cacheReady = new Promise<void>(r => { resolveCacheReady = r; });
+
+    const securityPromise = runSubAgent(
+        "security_review",
+        SECURITY_PROMPT,
+        sharedSystemContent,
+        contextHints,
+        changedFiles,
+        effectiveRecursionLimit,
+        () => resolveCacheReady!(),
+    ).catch(err => {
+        resolveCacheReady!(); // unblock agents 2+3 even if agent 1 fails
+        throw err;            // re-throw so Promise.all still rejects
     });
 
-    logRunStats("Orchestrated review", stepCount);
+    // Wait for cache to be warm before starting agents 2+3
+    await cacheReady;
+
+    const [securitySummary, perfSummary, cqSummary] = await Promise.all([
+        securityPromise,
+        runSubAgent(
+            "performance_review",
+            PERFORMANCE_PROMPT,
+            sharedSystemContent,
+            contextHints,
+            changedFiles,
+            effectiveRecursionLimit,
+        ),
+        runSubAgent(
+            "code_quality_review",
+            CODE_QUALITY_PROMPT,
+            sharedSystemContent,
+            contextHints,
+            changedFiles,
+            effectiveRecursionLimit,
+        ),
+    ]);
+
+    // --- Synthesizer: combine findings and submit review ---
+    console.log("\n::group::📝 Synthesizer: combining findings");
+    console.log("::endgroup::");
+
+    const synthesizerMessage = `Here are the findings from the three specialist reviewers:
+
+## 🔒 Security Review
+${securitySummary}
+
+## ⚡ Performance Review
+${perfSummary}
+
+## 🧹 Code Quality Review
+${cqSummary}
+
+Combine these into a unified review summary and submit it using submit_review.`;
+
+    const { stepCount: synthSteps } = await streamWithBudget({
+        agentName: "synthesizer",
+        tools: [submitReviewTool],
+        messages: [
+            new SystemMessage(SYNTHESIZER_PROMPT),
+            new HumanMessage(synthesizerMessage),
+        ],
+        recursionLimit: 10,
+        wrapUpMessage: "IMPORTANT: Submit the review immediately with submit_review using whatever findings you have.",
+    });
+
+    logRunStats("Orchestrated review", synthSteps);
 }
