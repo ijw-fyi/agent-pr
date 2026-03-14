@@ -5,8 +5,10 @@
  * that each sub-agent tool delegates to.
  */
 
+import { tool } from "@langchain/core/tools";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
+import { z } from "zod";
 import { tools } from "../../../../tools/index.js";
 import { getAgentCosts } from "../../../../helpers/cached-model.js";
 import { streamWithBudget } from "../../../../helpers/stream-utils.js";
@@ -138,4 +140,31 @@ export async function runSubAgent(
         console.log(`\n✅ [${name}] Complete. Steps: ${stepCount}`);
     }
     return lastAIContent || `No findings from ${name} sub-agent.`;
+}
+
+/**
+ * Factory for creating sub-agent tools.
+ * All sub-agent tools share the same schema and runSubAgent call pattern —
+ * only name, description, and prompt differ.
+ */
+export function createSubAgentTool(
+    name: string,
+    description: string,
+    prompt: string,
+    context: PRContext,
+    recursionLimit: number,
+): StructuredToolInterface {
+    return tool(
+        async ({ context: contextHints, files }) => {
+            return runSubAgent(name, prompt, context, contextHints, files, recursionLimit);
+        },
+        {
+            name,
+            description,
+            schema: z.object({
+                context: z.string().describe("Context hints for the sub-agent — background about the PR, areas of concern, relevant details. This is additive guidance, NOT a restrictive focus."),
+                files: z.array(z.string()).describe("List of file paths to review."),
+            }),
+        },
+    );
 }

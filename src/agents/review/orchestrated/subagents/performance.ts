@@ -5,10 +5,7 @@
  * algorithmic complexity, I/O efficiency, resource management.
  */
 
-import { tool } from "@langchain/core/tools";
-import type { StructuredToolInterface } from "@langchain/core/tools";
-import { z } from "zod";
-import { runSubAgent } from "./shared.js";
+import { createSubAgentTool } from "./shared.js";
 import type { PRContext } from "../../../../context/types.js";
 
 const PERFORMANCE_PROMPT = `You are a performance specialist reviewing code changes in a pull request. Your job is to find ALL performance issues, not just a sample.
@@ -99,25 +96,12 @@ When all checklist items are resolved, provide your structured summary.
  * Create the performance review sub-agent tool.
  * The orchestrator calls this tool to run a focused performance analysis.
  */
-export function createPerformanceReviewTool(context: PRContext, recursionLimit: number): StructuredToolInterface {
-    return tool(
-        async ({ context: contextHints, files }) => {
-            return runSubAgent(
-                "performance_review",
-                PERFORMANCE_PROMPT,
-                context,
-                contextHints,
-                files,
-                recursionLimit,
-            );
-        },
-        {
-            name: "performance_review",
-            description: "Run a specialized performance review on the specified files. The sub-agent will investigate N+1 queries, memory leaks, algorithmic complexity, and other performance concerns. It can leave inline comments on issues it finds. Returns a structured summary of findings.",
-            schema: z.object({
-                context: z.string().describe("Context hints for the sub-agent — background about the PR, areas of concern, relevant details. This is additive guidance, NOT a restrictive focus. The sub-agent always does a full performance sweep."),
-                files: z.array(z.string()).describe("List of file paths to review for performance issues."),
-            }),
-        },
+export function createPerformanceReviewTool(context: PRContext, recursionLimit: number) {
+    return createSubAgentTool(
+        "performance_review",
+        "Run a specialized performance review on the specified files. The sub-agent will investigate N+1 queries, memory leaks, algorithmic complexity, and other performance concerns. It can leave inline comments on issues it finds. Returns a structured summary of findings.",
+        PERFORMANCE_PROMPT,
+        context,
+        recursionLimit,
     );
 }

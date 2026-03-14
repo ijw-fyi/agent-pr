@@ -8,10 +8,7 @@
  * formatting, semicolons, etc.).
  */
 
-import { tool } from "@langchain/core/tools";
-import type { StructuredToolInterface } from "@langchain/core/tools";
-import { z } from "zod";
-import { runSubAgent } from "./shared.js";
+import { createSubAgentTool } from "./shared.js";
 import type { PRContext } from "../../../../context/types.js";
 
 const CODE_QUALITY_PROMPT = `You are a code quality specialist reviewing code changes in a pull request. Your job is to find ALL substantive code quality issues, not just a sample.
@@ -112,25 +109,12 @@ When all checklist items are resolved, provide your structured summary.
  * Create the code quality review sub-agent tool.
  * The orchestrator calls this tool to run a focused code quality analysis.
  */
-export function createCodeQualityReviewTool(context: PRContext, recursionLimit: number): StructuredToolInterface {
-    return tool(
-        async ({ context: contextHints, files }) => {
-            return runSubAgent(
-                "code_quality_review",
-                CODE_QUALITY_PROMPT,
-                context,
-                contextHints,
-                files,
-                recursionLimit,
-            );
-        },
-        {
-            name: "code_quality_review",
-            description: "Run a specialized code quality & tech debt review on the specified files. The sub-agent will investigate duplicated code, dead code, maintainability issues, error handling, and API design. It can leave inline comments on issues it finds. Returns a structured summary of findings. Does NOT flag linter-catchable issues.",
-            schema: z.object({
-                context: z.string().describe("Context hints for the sub-agent — background about the PR, areas of concern, relevant details. This is additive guidance, NOT a restrictive focus. The sub-agent always does a full code quality sweep."),
-                files: z.array(z.string()).describe("List of file paths to review for code quality issues."),
-            }),
-        },
+export function createCodeQualityReviewTool(context: PRContext, recursionLimit: number) {
+    return createSubAgentTool(
+        "code_quality_review",
+        "Run a specialized code quality & tech debt review on the specified files. The sub-agent will investigate duplicated code, dead code, maintainability issues, error handling, and API design. It can leave inline comments on issues it finds. Returns a structured summary of findings. Does NOT flag linter-catchable issues.",
+        CODE_QUALITY_PROMPT,
+        context,
+        recursionLimit,
     );
 }

@@ -5,10 +5,7 @@
  * input validation, dependency security.
  */
 
-import { tool } from "@langchain/core/tools";
-import type { StructuredToolInterface } from "@langchain/core/tools";
-import { z } from "zod";
-import { runSubAgent } from "./shared.js";
+import { createSubAgentTool } from "./shared.js";
 import type { PRContext } from "../../../../context/types.js";
 
 const SECURITY_PROMPT = `You are a security specialist reviewing code changes in a pull request. Your job is to find ALL security issues, not just a sample.
@@ -99,25 +96,12 @@ When all checklist items are resolved, provide your structured summary.
  * Create the security review sub-agent tool.
  * The orchestrator calls this tool to run a focused security analysis.
  */
-export function createSecurityReviewTool(context: PRContext, recursionLimit: number): StructuredToolInterface {
-    return tool(
-        async ({ context: contextHints, files }) => {
-            return runSubAgent(
-                "security_review",
-                SECURITY_PROMPT,
-                context,
-                contextHints,
-                files,
-                recursionLimit,
-            );
-        },
-        {
-            name: "security_review",
-            description: "Run a specialized security & safety review on the specified files. The sub-agent will investigate injection vulnerabilities, auth issues, data exposure, and other security concerns. It can leave inline comments on issues it finds. Returns a structured summary of findings.",
-            schema: z.object({
-                context: z.string().describe("Context hints for the sub-agent — background about the PR, areas of concern, relevant details. This is additive guidance, NOT a restrictive focus. The sub-agent always does a full security sweep."),
-                files: z.array(z.string()).describe("List of file paths to review for security issues."),
-            }),
-        },
+export function createSecurityReviewTool(context: PRContext, recursionLimit: number) {
+    return createSubAgentTool(
+        "security_review",
+        "Run a specialized security & safety review on the specified files. The sub-agent will investigate injection vulnerabilities, auth issues, data exposure, and other security concerns. It can leave inline comments on issues it finds. Returns a structured summary of findings.",
+        SECURITY_PROMPT,
+        context,
+        recursionLimit,
     );
 }
