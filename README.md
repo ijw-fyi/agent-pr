@@ -264,6 +264,23 @@ MCP_CONFIG: |
   }
 ```
 
+## Multi-Agent Review (Preview)
+
+The `next` branch (`ijw-fyi/agent-pr@next`) includes an orchestrated multi-agent review mode. Three specialized agents (🔒 security, ⚡ performance, 🧹 code quality) review your PR in parallel, then a synthesizer combines their findings into a single review. It includes prompt cache sharing across agents to minimize cost.
+
+To try it, point your workflow at the `next` branch and set `review_mode` to `orchestrated`:
+
+```yaml
+jobs:
+  call-review:
+    uses: ijw-fyi/agent-pr/.github/workflows/shared_workflow.yml@next
+    with:
+      review_mode: "orchestrated"
+    secrets: inherit
+```
+
+> **Note:** The multi-agent mode is slightly more expensive than single-agent mode due to running multiple agents, but produces more thorough domain-specific analysis.
+
 ## What the Agent Reviews
 
 The agent focuses on **significant issues only**:
