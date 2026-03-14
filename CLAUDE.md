@@ -23,8 +23,10 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
 
 1. **Review mode** (`ACTION_MODE=review`) — `src/agents/review/index.ts`
    - Triggered by `/review` comment on a PR
-   - Runs a 3-phase ReAct agent: triage → investigation → submit review
+   - Runs a 4-phase ReAct agent: Phase 0 (re-review check) → triage → investigation → submit review
    - Uses tools to read files, grep, leave inline comments, and submit a final verdict
+   - Includes duplicate review prevention — checks for existing bot reviews before submitting
+   - Files can be excluded via `--ignore` glob patterns (uses `minimatch`)
 
 2. **Comment reply mode** (`ACTION_MODE=comment-reply`) — `src/agents/comment-reply/index.ts`
    - Triggered in two cases:
@@ -38,11 +40,11 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
 ### Key Modules
 
 - **`src/context/github.ts`** — All GitHub API interactions via Octokit (fetch PR data, post comments, submit reviews, read/write preferences branch)
-- **`src/context/types.ts`** — Core interfaces: `PRContext`, `ReviewComment`, `PRFile`, etc.
+- **`src/context/types.ts`** — Core interfaces: `PRContext`, `ReviewComment`, `PRFile`, `PRCommit`, `ReviewSummary`, etc.
 - **`src/tools/`** — LangChain tool implementations. Each tool exports a `tool()` call with a Zod schema. Tool names use snake_case (e.g., `read_files`, `leave_comment`)
 - **`src/tools/index.ts`** — Tool registry; builds the tool array and accepts MCP tools dynamically
 - **`src/helpers/cached-model.ts`** — OpenRouter client with prompt caching support, cost/token tracking
-- **`src/helpers/overrides.ts`** — Parses command flags (`--budget`, `--model`, `--recursion-limit`, `--max-loc`) from `/review` and slash commands (`/question`, `/pr`, `/reply`)
+- **`src/helpers/overrides.ts`** — Parses command flags (`--budget`, `--model`, `--recursion-limit`, `--max-loc`, `--ignore`) from `/review` and slash commands. `--ignore` is a multi-value flag (repeatable) joined with commas into `PR_AGENT_IGNORE`
 - **`src/helpers/tree-sitter.ts`** — Web Tree Sitter parser for symbol extraction (TS, JS, Python, C, C++)
 - **`src/mcp/`** — MCP client for connecting to HTTP/stdio MCP servers (DeepWiki by default)
 - **`src/preferences/git.ts`** — Preference storage on `__agent_pr__` orphan branch via GitHub API
@@ -54,7 +56,9 @@ Dispatched from `src/index.ts` based on `ACTION_MODE` env var:
 
 ### Runtime Context
 
-Tools access runtime context through `process.env` variables: `REPO_OWNER`, `REPO_NAME`, `PR_NUMBER`, `HEAD_SHA`, `MODEL`, `OPENROUTER_KEY`, `GITHUB_TOKEN`. These are set at startup from GitHub Actions environment.
+Tools access runtime context through `process.env` variables: `REPO_OWNER`, `REPO_NAME`, `PR_NUMBER`, `HEAD_SHA`, `MODEL`, `OPENROUTER_KEY`, `GITHUB_TOKEN`, `PR_AGENT_IGNORE`. These are set at startup from GitHub Actions environment.
+
+`PRContext` includes `commits` (chronological list), `reviewSummaries` (bot's previous reviews), and `botLogin` (authenticated bot's GitHub username) for re-review awareness and duplicate prevention.
 
 ### Build Pipeline
 
