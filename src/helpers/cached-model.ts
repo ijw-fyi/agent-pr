@@ -286,7 +286,7 @@ function patchOpenAIClient(client: any, agentName?: string) {
         }
 
         callCount++;
-        console.log(`::group::[Call ${callCount} - Stats] OpenRouter API Request`);
+        console.log(`::group::[Call ${callCount} - $${runningCostTotal.toFixed(4)}] OpenRouter API Request`);
         console.log("🔄 Sending request with prompt caching");
 
         // Debug: show message roles
