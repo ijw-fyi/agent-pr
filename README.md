@@ -187,7 +187,7 @@ You can also pass inline overrides:
 /review --budget 5 focus on security
 /review --model opus check the database migrations
 /review --budget 10 --max-loc 5000
-/review --ignore "*.generated.ts" --ignore "migrations/*"
+/review --ignore "*.generated.ts" --ignore "migrations/**"
 ```
 
 ### 4. Ask questions or interact on code
@@ -212,7 +212,7 @@ Override configuration per-review by passing flags in your `/review` comment. Fl
 | `--model <name>` | Override the model | `--model opus` |
 | `--recursion-limit <n>` | Max agent steps | `--recursion-limit 50` |
 | `--max-loc <n>` | Max lines of code to review | `--max-loc 5000` |
-| `--ignore <glob>` | Ignore files matching glob (repeatable) | `--ignore "migrations/*"` |
+| `--ignore <glob>` | Ignore files matching glob (repeatable). Use `**` for recursive matching (e.g., `dir/**` matches all nested files, while `dir/*` only matches direct children) | `--ignore "migrations/**"` |
 
 ### Model Aliases
 
