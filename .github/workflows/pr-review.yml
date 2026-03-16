@@ -13,5 +13,5 @@ permissions:
 
 jobs:
   call-review:
-    uses: ijw-fyi/agent-pr/.github/workflows/shared_workflow.yml@master
+    uses: ijw-fyi/agent-pr/.github/workflows/shared_workflow.yml@next
     secrets: inherit

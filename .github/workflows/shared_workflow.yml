@@ -62,7 +62,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run PR Review Agent
-        uses: ijw-fyi/agent-pr@master
+        uses: ijw-fyi/agent-pr@next
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
@@ -109,7 +109,7 @@ jobs:
           ref: ${{ steps.pr.outputs.head_sha }}
 
       - name: Run Comment Reply Agent
-        uses: ijw-fyi/agent-pr@master
+        uses: ijw-fyi/agent-pr@next
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
