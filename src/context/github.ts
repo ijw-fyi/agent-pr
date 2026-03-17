@@ -238,12 +238,23 @@ async function getConversation(
  * Get the authenticated bot's GitHub login
  */
 async function getBotLogin(): Promise<string> {
+    // Try GET /user first (works with user tokens / PATs)
     try {
         const { data: currentUser } = await octokit.rest.users.getAuthenticated();
-        console.log(`Bot login resolved: ${currentUser.login}`);
+        console.log(`Bot login resolved via /user: ${currentUser.login}`);
         return currentUser.login;
+    } catch {
+        // GET /user fails with installation tokens (GITHUB_TOKEN) — try GET /app
+    }
+
+    // Fallback: GET /app works with installation tokens, returns app slug
+    try {
+        const { data: app } = await octokit.rest.apps.getAuthenticated();
+        const login = `${app.slug}[bot]`;
+        console.log(`Bot login resolved via /app: ${login}`);
+        return login;
     } catch (error) {
-        console.warn("Could not resolve bot login:", error instanceof Error ? error.message : error);
+        console.warn("Could not resolve bot login via /user or /app:", error instanceof Error ? error.message : error);
         return "unknown";
     }
 }
@@ -370,11 +381,7 @@ export async function computeIncrementalDiff(context: PRContext): Promise<void> 
         if (commentAuthors.length) console.log(`Comment authors: ${commentAuthors.join(', ')}`);
         if (inlineAuthors.length) console.log(`Inline comment authors: ${inlineAuthors.join(', ')}`);
 
-        // Match bot activity: exact match on botLogin, or fall back to any [bot] author
-        // when botLogin is "unknown" (e.g., GITHUB_TOKEN installation tokens can't resolve GET /user)
-        const isBotAuthor = (author: string) =>
-            author === context.botLogin ||
-            (context.botLogin === "unknown" && author.endsWith("[bot]"));
+        const isBotAuthor = (author: string) => author === context.botLogin;
 
         // Find the latest bot activity across all three sources
         const botTimestamps: number[] = [];
@@ -703,19 +710,12 @@ async function dismissPreviousReviews(
     prNumber: number
 ): Promise<void> {
     try {
-        // Resolve bot identity — falls back to [bot] matching when GET /user fails
-        // (e.g., GITHUB_TOKEN is an installation token that can't call GET /user)
-        let botLogin = "unknown";
-        try {
-            const { data: currentUser } = await octokit.rest.users.getAuthenticated();
-            botLogin = currentUser.login;
-        } catch {
-            console.warn("Could not resolve bot login for dismiss, falling back to [bot] matching");
+        // Resolve bot identity — skip dismissal if we can't identify ourselves
+        const botLogin = await getBotLogin();
+        if (botLogin === "unknown") {
+            console.warn("Could not resolve bot login — skipping dismiss to avoid affecting other bots' reviews");
+            return;
         }
-
-        const isBotReview = (login: string | undefined) =>
-            login === botLogin ||
-            (botLogin === "unknown" && (login?.endsWith("[bot]") ?? false));
 
         // List all reviews on the PR
         const reviews = await octokit.paginate(octokit.rest.pulls.listReviews, {
@@ -728,7 +728,7 @@ async function dismissPreviousReviews(
         // Find reviews by the bot that are APPROVED or CHANGES_REQUESTED
         const reviewsToDismiss = reviews.filter(
             (review) =>
-                isBotReview(review.user?.login) &&
+                review.user?.login === botLogin &&
                 (review.state === "APPROVED" || review.state === "CHANGES_REQUESTED")
         );
 
