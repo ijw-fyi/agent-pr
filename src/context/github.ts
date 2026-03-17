@@ -240,8 +240,10 @@ async function getConversation(
 async function getBotLogin(): Promise<string> {
     try {
         const { data: currentUser } = await octokit.rest.users.getAuthenticated();
+        console.log(`Bot login resolved: ${currentUser.login}`);
         return currentUser.login;
-    } catch {
+    } catch (error) {
+        console.warn("Could not resolve bot login:", error instanceof Error ? error.message : error);
         return "unknown";
     }
 }
@@ -359,25 +361,40 @@ export async function computeIncrementalDiff(context: PRContext): Promise<void> 
     }
 
     try {
+        // Debug: log bot identity and all authors for diagnostics
+        console.log(`Bot login: "${context.botLogin}"`);
+        const reviewAuthors = [...new Set(context.reviewSummaries.map(r => r.author))];
+        const commentAuthors = [...new Set(context.conversation.map(c => c.author))];
+        const inlineAuthors = [...new Set(context.existingComments.map(c => c.author))];
+        if (reviewAuthors.length) console.log(`Review authors: ${reviewAuthors.join(', ')}`);
+        if (commentAuthors.length) console.log(`Comment authors: ${commentAuthors.join(', ')}`);
+        if (inlineAuthors.length) console.log(`Inline comment authors: ${inlineAuthors.join(', ')}`);
+
+        // Match bot activity: exact match on botLogin, or fall back to any [bot] author
+        // when botLogin is "unknown" (e.g., GITHUB_TOKEN installation tokens can't resolve GET /user)
+        const isBotAuthor = (author: string) =>
+            author === context.botLogin ||
+            (context.botLogin === "unknown" && author.endsWith("[bot]"));
+
         // Find the latest bot activity across all three sources
         const botTimestamps: number[] = [];
 
         for (const r of context.reviewSummaries) {
-            if (r.author === context.botLogin && r.submittedAt) {
+            if (isBotAuthor(r.author) && r.submittedAt) {
                 const t = new Date(r.submittedAt).getTime();
                 if (!isNaN(t)) botTimestamps.push(t);
             }
         }
 
         for (const c of context.conversation) {
-            if (c.author === context.botLogin && c.createdAt) {
+            if (isBotAuthor(c.author) && c.createdAt) {
                 const t = new Date(c.createdAt).getTime();
                 if (!isNaN(t)) botTimestamps.push(t);
             }
         }
 
         for (const c of context.existingComments) {
-            if (c.author === context.botLogin && c.createdAt) {
+            if (isBotAuthor(c.author) && c.createdAt) {
                 const t = new Date(c.createdAt).getTime();
                 if (!isNaN(t)) botTimestamps.push(t);
             }
