@@ -25,6 +25,10 @@ export interface PRContext {
     reviewSummaries: ReviewSummary[];
     /** The authenticated bot's GitHub login (e.g., "github-actions[bot]") */
     botLogin: string;
+    /** Incremental diff since last bot review (undefined if first review or --full) */
+    incrementalDiff?: string;
+    /** SHA of the commit used as base for incremental diff */
+    lastReviewedCommitSha?: string;
 }
 
 /**

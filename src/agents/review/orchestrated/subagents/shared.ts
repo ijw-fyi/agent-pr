@@ -32,6 +32,9 @@ export function getSubAgentTools(): StructuredToolInterface[] {
  * agent 1 writes the cache, agents 2+3 get cache hits on the diff.
  */
 export function buildSharedSystemContent(context: PRContext): string {
+    const isIncremental = !!context.incrementalDiff;
+    const displayDiff = isIncremental ? context.incrementalDiff! : context.diff;
+
     let content = `# Pull Request Under Review
 
 ## PR Information
@@ -42,12 +45,25 @@ export function buildSharedSystemContent(context: PRContext): string {
 
 ## PR Description
 ${context.description || "(No description provided)"}
+`;
 
+    if (isIncremental) {
+        content += `
+## Changed Files Diff (incremental — changes since last review at \`${context.lastReviewedCommitSha!.substring(0, 7)}\`)
+> **Note**: This diff only shows changes since your last review. Use the \`get_file_diff\` tool to see the full PR diff for any file if you need more context.
+
+\`\`\`diff
+${truncateDiff(displayDiff)}
+\`\`\`
+`;
+    } else {
+        content += `
 ## Changed Files Diff
 \`\`\`diff
 ${truncateDiff(context.diff)}
 \`\`\`
 `;
+    }
 
     const timeline = buildActivityTimeline(context);
     if (timeline) {

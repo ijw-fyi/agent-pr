@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { initGitHub, gatherPRContext, addReactionToComment, addReactionToReviewComment } from "./context/github.js";
+import { initGitHub, gatherPRContext, computeIncrementalDiff, addReactionToComment, addReactionToReviewComment } from "./context/github.js";
 import { runReview } from "./agents/review/index.js";
 import { runCommentReplyAgent } from "./agents/comment-reply/index.js";
 import type { CommentReplyContext } from "./agents/comment-reply/index.js";
@@ -103,6 +103,12 @@ async function runReviewMode(
     // Strip override flags from all comments
     for (const comment of context.conversation) {
         comment.body = stripOverrideFlags(comment.body);
+    }
+
+    // Compute incremental diff if this is a re-review (after overrides so --full is respected)
+    await computeIncrementalDiff(context);
+    if (context.lastReviewedCommitSha) {
+        console.log(`Incremental review: showing changes since ${context.lastReviewedCommitSha.substring(0, 7)}`);
     }
 
     // Validate overridable env vars after overrides are applied

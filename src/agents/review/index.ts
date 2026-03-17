@@ -305,12 +305,26 @@ export function buildContextMessage(context: PRContext): string {
 ${context.description || "(No description provided)"}
 `;
 
-    message += `
+    const isIncremental = !!context.incrementalDiff;
+    const displayDiff = isIncremental ? context.incrementalDiff! : context.diff;
+
+    if (isIncremental) {
+        message += `
+## Changed Files Diff (incremental — changes since last review at \`${context.lastReviewedCommitSha!.substring(0, 7)}\`)
+> **Note**: This diff only shows changes since your last review. Use the \`get_file_diff\` tool to see the full PR diff for any file if you need more context.
+
+\`\`\`diff
+${truncateDiff(displayDiff)}
+\`\`\`
+`;
+    } else {
+        message += `
 ## Changed Files Diff
 \`\`\`diff
 ${truncateDiff(context.diff)}
 \`\`\`
 `;
+    }
 
     // Build unified PR activity timeline
     const timeline = buildActivityTimeline(context);
@@ -343,17 +357,33 @@ ${context.preferences}
     }
 
     const changedFiles = extractChangedFiles(context.diff);
+    const incrementalFiles = isIncremental ? new Set(extractChangedFiles(context.incrementalDiff!)) : null;
+
     if (changedFiles.length > 0) {
-        message += `
+        if (isIncremental && incrementalFiles) {
+            message += `
+## Changed Files Inventory (${changedFiles.length} files total, ${incrementalFiles.size} with new changes)
+${changedFiles.map((f, i) => `${i + 1}. ${f}${incrementalFiles.has(f) ? " ✱ (changed since last review)" : ""}`).join("\n")}
+`;
+        } else {
+            message += `
 ## Changed Files Inventory (${changedFiles.length} files)
 ${changedFiles.map((f, i) => `${i + 1}. ${f}`).join("\n")}
 `;
+        }
     }
 
-    message += `
+    if (isIncremental && incrementalFiles) {
+        message += `
+## Your Task
+This is an **incremental re-review**. The diff above shows only changes since your last review (commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`). Files marked with ✱ have new changes. Focus your review on these new changes, but use \`get_file_diff\` to view the full PR diff for any file if you need broader context. Begin with Phase 0 to check your previous findings, then proceed through the review phases for the new changes.
+`;
+    } else {
+        message += `
 ## Your Task
 Review this pull request. This PR changes ${changedFiles.length} file${changedFiles.length !== 1 ? "s" : ""}. You must examine each one. Begin with the review process as described in your instructions (starting with Phase 0 if you have previous reviews, otherwise Phase 1).
 `;
+    }
 
     return message;
 }
