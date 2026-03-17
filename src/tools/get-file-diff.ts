@@ -3,6 +3,18 @@ import { z } from "zod";
 import { getPRDiff } from "../context/github.js";
 import { truncateDiffPart } from "../agents/review/index.js";
 
+// Module-level cache: safe because this runs in a single-use GitHub Actions process
+let cachedFullDiff: string | null = null;
+
+async function getFullDiff(): Promise<string> {
+    if (cachedFullDiff !== null) return cachedFullDiff;
+    const owner = process.env.REPO_OWNER!;
+    const repo = process.env.REPO_NAME!;
+    const prNumber = parseInt(process.env.PR_NUMBER!, 10);
+    cachedFullDiff = await getPRDiff(owner, repo, prNumber);
+    return cachedFullDiff;
+}
+
 /**
  * Tool to fetch the full PR diff for a specific file.
  * Useful during incremental reviews when the context diff only shows
@@ -10,12 +22,8 @@ import { truncateDiffPart } from "../agents/review/index.js";
  */
 export const getFileDiffTool = tool(
     async ({ file_path }) => {
-        const owner = process.env.REPO_OWNER!;
-        const repo = process.env.REPO_NAME!;
-        const prNumber = parseInt(process.env.PR_NUMBER!, 10);
-
         try {
-            const fullDiff = await getPRDiff(owner, repo, prNumber);
+            const fullDiff = await getFullDiff();
 
             // Split by file sections and find the matching one
             const parts = fullDiff.split(/(?=^diff --git )/m);
