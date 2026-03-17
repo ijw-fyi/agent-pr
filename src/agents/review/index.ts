@@ -15,6 +15,33 @@ import * as diffUtils from "../../helpers/diff-utils.js";
 export { countDiffLOC, extractChangedFiles, truncateDiff, truncateDiffPart } from "../../helpers/diff-utils.js";
 
 /**
+ * Render the "Changed Files Diff" section, handling incremental vs full diff.
+ * Shared between buildContextMessage and buildSharedSystemContent.
+ */
+export function renderDiffSection(context: PRContext): string {
+    const isIncremental = !!context.incrementalDiff;
+    const displayDiff = isIncremental ? context.incrementalDiff! : context.diff;
+
+    if (isIncremental) {
+        return `
+## Changed Files Diff (incremental — changes since last review at \`${context.lastReviewedCommitSha!.substring(0, 7)}\`)
+> **Note**: This diff only shows changes since your last review. Use the \`get_file_diff\` tool to see the full PR diff for any file if you need more context.
+
+\`\`\`diff
+${diffUtils.truncateDiff(displayDiff)}
+\`\`\`
+`;
+    }
+
+    return `
+## Changed Files Diff
+\`\`\`diff
+${diffUtils.truncateDiff(context.diff)}
+\`\`\`
+`;
+}
+
+/**
  * Run the PR review agent with the given context.
  * Dispatches to either single or orchestrated review mode.
  */
@@ -192,25 +219,8 @@ ${context.description || "(No description provided)"}
 `;
 
     const isIncremental = !!context.incrementalDiff;
-    const displayDiff = isIncremental ? context.incrementalDiff! : context.diff;
 
-    if (isIncremental) {
-        message += `
-## Changed Files Diff (incremental — changes since last review at \`${context.lastReviewedCommitSha!.substring(0, 7)}\`)
-> **Note**: This diff only shows changes since your last review. Use the \`get_file_diff\` tool to see the full PR diff for any file if you need more context.
-
-\`\`\`diff
-${diffUtils.truncateDiff(displayDiff)}
-\`\`\`
-`;
-    } else {
-        message += `
-## Changed Files Diff
-\`\`\`diff
-${diffUtils.truncateDiff(context.diff)}
-\`\`\`
-`;
-    }
+    message += renderDiffSection(context);
 
     // Build unified PR activity timeline
     const timeline = buildActivityTimeline(context);
