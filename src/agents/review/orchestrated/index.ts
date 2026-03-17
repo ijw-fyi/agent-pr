@@ -64,9 +64,13 @@ export async function runOrchestratedReview(
     // Extract changed files and user instructions
     const changedFiles = extractChangedFiles(context.diff);
     const userInstructions = extractUserInstructions(context);
-    const contextHints = userInstructions
+    let contextHints = userInstructions
         ? `User instructions: ${userInstructions}`
         : "No specific instructions — do a thorough review of your domain.";
+
+    if (context.incrementalDiff) {
+        contextHints += `\n\nThis is an **incremental re-review**. The diff shows only changes since commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`. Focus on the new changes, but use \`get_file_diff\` to view the full PR diff for any file if you need broader context.`;
+    }
 
     console.log(`\n📋 Changed files (${changedFiles.length}): ${changedFiles.join(", ")}`);
     if (userInstructions) {
