@@ -46,7 +46,7 @@ export const getFileDiffTool = tool(
     {
         name: "get_file_diff",
         description:
-            "Get the full PR diff for a specific file. During incremental re-reviews, the main diff only shows changes since the last review. Use this tool to see the complete diff of any file across the entire PR for broader context.",
+            "Get the full PR diff for a specific file. This is a heavy operation — prefer read_files (with line ranges) or grep for targeted investigation. Only use this when you need to understand the full scope of changes to a file, e.g., to check whether an issue from a previous review was addressed across the entire file.",
         schema: z.object({
             file_path: z
                 .string()

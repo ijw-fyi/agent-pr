@@ -110,7 +110,7 @@ When all checklist items are resolved, provide your structured summary.
 - **find_references** — syntax-aware search (excludes comments/strings). Use for "where is X used?" questions.
 - **get_file_outline** — lists all symbols in a file with their line ranges. Use to discover what's in a file, then read specific ranges.
 - **list_directory** — explore the project structure.
-- **get_file_diff** — get the full PR diff for a specific file. During incremental re-reviews the main diff only shows changes since the last review; use this to see the complete diff for any file.
+- **get_file_diff** — fetch the full PR diff for a specific file. **Use sparingly** — prefer read_files with line ranges or grep for targeted investigation. Only use when you need the full picture of changes to a file (e.g., verifying a previous review finding was addressed).
 
 ## IMPORTANT
 - You MUST do a **full code quality sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.

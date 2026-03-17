@@ -25,7 +25,7 @@ export function renderDiffSection(context: PRContext): string {
     if (isIncremental) {
         return `
 ## Changed Files Diff (incremental — changes since last review at \`${context.lastReviewedCommitSha!.substring(0, 7)}\`)
-> **Note**: This diff only shows changes since your last review. Use the \`get_file_diff\` tool to see the full PR diff for any file if you need more context.
+> **Note**: This diff only shows changes since your last review. If you need the full PR diff for a file, use \`get_file_diff\` — but prefer \`read_files\` or \`grep\` for targeted investigation.
 
 \`\`\`diff
 ${diffUtils.truncateDiff(displayDiff)}
@@ -272,7 +272,7 @@ ${changedFiles.map((f, i) => `${i + 1}. ${f}`).join("\n")}
     if (isIncremental && incrementalFiles) {
         message += `
 ## Your Task
-This is an **incremental re-review**. The diff above shows only changes since your last review (commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`). Files marked with ✱ have new changes. Focus your review on these new changes, but use \`get_file_diff\` to view the full PR diff for any file if you need broader context. Begin with Phase 0 to check your previous findings, then proceed through the review phases for the new changes.
+This is an **incremental re-review**. The diff above shows only changes since your last review (commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`). Files marked with ✱ have new changes. Focus your review on these new changes. Use \`read_files\` and \`grep\` for targeted investigation; use \`get_file_diff\` only when you need the full scope of a file's changes. Begin with Phase 0 to check your previous findings, then proceed through the review phases for the new changes.
 `;
     } else {
         message += `
