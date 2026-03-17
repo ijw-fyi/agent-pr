@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { getPRDiff } from "../context/github.js";
-import { truncateDiffPart } from "../agents/review/index.js";
+import { truncateDiffPart } from "../helpers/diff-utils.js";
 
 // Module-level cache: safe because this runs in a single-use GitHub Actions process
 let cachedFullDiff: string | null = null;

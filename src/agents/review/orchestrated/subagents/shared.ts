@@ -12,7 +12,8 @@ import { z } from "zod";
 import { tools } from "../../../../tools/index.js";
 import { getAgentCosts } from "../../../../helpers/cached-model.js";
 import { streamWithBudget } from "../../../../helpers/stream-utils.js";
-import { truncateDiff, buildActivityTimeline } from "../../index.js";
+import { truncateDiff } from "../../../../helpers/diff-utils.js";
+import { buildActivityTimeline } from "../../index.js";
 import type { PRContext } from "../../../../context/types.js";
 
 // Sub-agents can leave inline comments but cannot submit the final review
