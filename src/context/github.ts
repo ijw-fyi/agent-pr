@@ -110,7 +110,7 @@ async function getPullRequest(owner: string, repo: string, prNumber: number) {
 /**
  * Get the unified diff for a PR
  */
-async function getPRDiff(
+export async function getPRDiff(
     owner: string,
     repo: string,
     prNumber: number
@@ -321,6 +321,113 @@ export async function getCommitDiff(
     });
     // When requesting diff format, data is returned as a string
     return data as unknown as string;
+}
+
+/**
+ * Get a diff comparing two commits (base...head)
+ */
+export async function getCompareDiff(
+    owner: string,
+    repo: string,
+    baseSha: string,
+    headSha: string
+): Promise<string> {
+    const { data } = await octokit.rest.repos.compareCommits({
+        owner,
+        repo,
+        base: baseSha,
+        head: headSha,
+        mediaType: {
+            format: "diff",
+        },
+    });
+    return data as unknown as string;
+}
+
+/**
+ * Compute incremental diff if this is a subsequent review.
+ * Finds the last bot activity timestamp, matches it to a commit,
+ * and fetches only the diff since that commit.
+ * Mutates context to set incrementalDiff and lastReviewedCommitSha.
+ * Falls back gracefully (leaves fields undefined) on any failure.
+ */
+export async function computeIncrementalDiff(context: PRContext): Promise<void> {
+    // Skip if --full flag is set
+    if (process.env.PR_AGENT_FULL_DIFF === "true") {
+        console.log("--full flag set, using full PR diff");
+        return;
+    }
+
+    try {
+        // Find the latest bot activity across all three sources
+        const botTimestamps: number[] = [];
+
+        for (const r of context.reviewSummaries) {
+            if (r.author === context.botLogin && r.submittedAt) {
+                const t = new Date(r.submittedAt).getTime();
+                if (!isNaN(t)) botTimestamps.push(t);
+            }
+        }
+
+        for (const c of context.conversation) {
+            if (c.author === context.botLogin && c.createdAt) {
+                const t = new Date(c.createdAt).getTime();
+                if (!isNaN(t)) botTimestamps.push(t);
+            }
+        }
+
+        for (const c of context.existingComments) {
+            if (c.author === context.botLogin && c.createdAt) {
+                const t = new Date(c.createdAt).getTime();
+                if (!isNaN(t)) botTimestamps.push(t);
+            }
+        }
+
+        if (botTimestamps.length === 0) {
+            console.log("No previous bot activity found, using full PR diff");
+            return;
+        }
+
+        const lastBotActivityTime = Math.max(...botTimestamps);
+        console.log(`Last bot activity: ${new Date(lastBotActivityTime).toISOString()}`);
+
+        // Find the last commit at or before the bot's last activity
+        let matchedCommit: { sha: string; date: string } | null = null;
+        for (const commit of context.commits) {
+            const commitTime = new Date(commit.date).getTime();
+            if (!isNaN(commitTime) && commitTime <= lastBotActivityTime) {
+                matchedCommit = commit;
+            }
+        }
+
+        if (!matchedCommit) {
+            console.log("No commit found at or before last bot activity (possible force push), using full PR diff");
+            return;
+        }
+
+        // If the matched commit is HEAD, nothing changed since last review
+        if (matchedCommit.sha === context.headSha) {
+            console.log("No new commits since last bot activity, using full PR diff");
+            return;
+        }
+
+        console.log(`Computing incremental diff: ${matchedCommit.sha.substring(0, 7)}..${context.headSha.substring(0, 7)}`);
+        const incrementalDiff = await getCompareDiff(
+            context.owner,
+            context.repo,
+            matchedCommit.sha,
+            context.headSha,
+        );
+
+        context.incrementalDiff = incrementalDiff;
+        context.lastReviewedCommitSha = matchedCommit.sha;
+        console.log(`Incremental diff computed (since ${matchedCommit.sha.substring(0, 7)})`);
+    } catch (error) {
+        console.warn(
+            "Failed to compute incremental diff, falling back to full PR diff:",
+            error instanceof Error ? error.message : error,
+        );
+    }
 }
 
 /**

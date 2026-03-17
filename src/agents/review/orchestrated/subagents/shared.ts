@@ -12,7 +12,7 @@ import { z } from "zod";
 import { tools } from "../../../../tools/index.js";
 import { getAgentCosts } from "../../../../helpers/cached-model.js";
 import { streamWithBudget } from "../../../../helpers/stream-utils.js";
-import { truncateDiff, buildActivityTimeline } from "../../index.js";
+import { buildActivityTimeline, renderDiffSection } from "../../index.js";
 import type { PRContext } from "../../../../context/types.js";
 
 // Sub-agents can leave inline comments but cannot submit the final review
@@ -42,12 +42,9 @@ export function buildSharedSystemContent(context: PRContext): string {
 
 ## PR Description
 ${context.description || "(No description provided)"}
-
-## Changed Files Diff
-\`\`\`diff
-${truncateDiff(context.diff)}
-\`\`\`
 `;
+
+    content += renderDiffSection(context);
 
     const timeline = buildActivityTimeline(context);
     if (timeline) {

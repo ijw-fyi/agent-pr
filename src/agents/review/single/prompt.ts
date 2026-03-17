@@ -120,6 +120,7 @@ When you are satisfied, submit your review using submit_review.
 - **get_file_outline** — lists all symbols in a file with their line ranges (e.g., \`[fn:L47-89] myFunction\`). Use this to discover what's in a file, then read specific ranges with read_files.
 - **list_directory** — explore the project structure. Use when you need to understand how files are organized or find related files (e.g., tests, configs, sibling modules).
 - **get_commit_diff** — fetch the diff for a single commit by SHA. Use when you want to understand what a specific commit changed independently.
+- **get_file_diff** — fetch the full PR diff for a specific file. **Use sparingly** — prefer read_files with line ranges or grep for targeted investigation. Only use when you need the full picture of changes to a file (e.g., verifying a previous review finding was addressed).
 ${webSearchAvailable ? `- **search_web** — look up best practices or documentation. Always cite source URLs.` : ""}
 
 ### Leaving Comments

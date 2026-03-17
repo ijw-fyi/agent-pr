@@ -1,0 +1,56 @@
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+import { getPRDiff } from "../context/github.js";
+import { truncateDiffPart } from "../helpers/diff-utils.js";
+
+// Module-level cache: safe because this runs in a single-use GitHub Actions process
+let cachedFullDiff: string | null = null;
+
+async function getFullDiff(): Promise<string> {
+    if (cachedFullDiff !== null) return cachedFullDiff;
+    const owner = process.env.REPO_OWNER!;
+    const repo = process.env.REPO_NAME!;
+    const prNumber = parseInt(process.env.PR_NUMBER!, 10);
+    cachedFullDiff = await getPRDiff(owner, repo, prNumber);
+    return cachedFullDiff;
+}
+
+/**
+ * Tool to fetch the full PR diff for a specific file.
+ * Useful during incremental reviews when the context diff only shows
+ * changes since the last review.
+ */
+export const getFileDiffTool = tool(
+    async ({ file_path }) => {
+        try {
+            const fullDiff = await getFullDiff();
+
+            // Split by file sections and find the matching one
+            const parts = fullDiff.split(/(?=^diff --git )/m);
+            for (const part of parts) {
+                if (!part.trim()) continue;
+                const headerLine = part.split('\n')[0];
+                const match = headerLine.match(/diff --git a\/(.*?) b\//);
+                if (match && match[1] === file_path) {
+                    return `=== Full PR diff for ${file_path} ===\n${truncateDiffPart(part)}`;
+                }
+            }
+
+            return `No diff found for file "${file_path}" in this PR. The file may not have been changed, or the path may be incorrect.`;
+        } catch (error) {
+            console.error(`Error fetching file diff for ${file_path}:`, error);
+            const message = error instanceof Error ? error.message : "Unknown error";
+            return `Error fetching file diff: ${message}`;
+        }
+    },
+    {
+        name: "get_file_diff",
+        description:
+            "Get the full PR diff for a specific file. This is a heavy operation — prefer read_files (with line ranges) or grep for targeted investigation. Only use this when you need to understand the full scope of changes to a file, e.g., to check whether an issue from a previous review was addressed across the entire file.",
+        schema: z.object({
+            file_path: z
+                .string()
+                .describe("The path of the file to get the full PR diff for (e.g., 'src/index.ts')."),
+        }),
+    }
+);

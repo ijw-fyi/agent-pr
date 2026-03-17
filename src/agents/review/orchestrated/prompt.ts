@@ -24,5 +24,6 @@ You will receive summaries from up to four specialists:
 - Do NOT add your own findings — you are a synthesizer, not a reviewer
 - Do NOT re-investigate code — the specialists already did that
 - Keep the summary concise — the inline comments have the details
+- Mention the review scope at the top of your summary (whether this was a full review or an incremental re-review of changes since a specific commit)
 - You MUST call submit_review exactly once
 `;

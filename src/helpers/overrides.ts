@@ -6,13 +6,14 @@
  * the cleaned text with flags stripped.
  */
 
-const FLAG_CONFIG: Record<string, { envVar: string; type: 'number' | 'string'; multi?: boolean }> = {
-    'budget':          { envVar: 'AGENT_PR_BUDGET', type: 'number' },
-    'model':           { envVar: 'MODEL',           type: 'string' },
-    'recursion-limit': { envVar: 'RECURSION_LIMIT', type: 'number' },
+const FLAG_CONFIG: Record<string, { envVar: string; type: 'number' | 'string' | 'boolean'; multi?: boolean }> = {
+    'budget':          { envVar: 'AGENT_PR_BUDGET',  type: 'number' },
+    'model':           { envVar: 'MODEL',            type: 'string' },
+    'recursion-limit': { envVar: 'RECURSION_LIMIT',  type: 'number' },
     'max-loc':         { envVar: 'PR_AGENT_MAX_LOC', type: 'number' },
     'ignore':          { envVar: 'PR_AGENT_IGNORE',  type: 'string', multi: true },
     'mode':            { envVar: 'REVIEW_MODE',      type: 'string' },
+    'full':            { envVar: 'PR_AGENT_FULL_DIFF', type: 'boolean' },
 };
 
 const MODEL_ALIASES: Record<string, string> = {
@@ -39,7 +40,15 @@ export function parseCommandOverrides(commentBody: string): ParsedOverrides {
     let stripped = commentBody;
 
     for (const [flag, config] of Object.entries(FLAG_CONFIG)) {
-        if (config.multi) {
+        if (config.type === 'boolean') {
+            // Boolean flags: --flag with no value
+            const pattern = new RegExp(`--${flag}(?=\\s|$)`, 'gi');
+            if (pattern.test(stripped)) {
+                overrides[config.envVar] = 'true';
+                console.log(`🔧 Override: --${flag} → ${config.envVar}=true`);
+                stripped = stripped.replace(pattern, '');
+            }
+        } else if (config.multi) {
             // Match all occurrences for multi-value flags (needs g flag for matchAll)
             const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'gi');
             const values: string[] = [];
@@ -140,9 +149,14 @@ export function processReviewOverrides(commentBody: string): string {
 export function stripOverrideFlags(text: string): string {
     if (!text) return text;
     let stripped = text;
-    for (const flag of Object.keys(FLAG_CONFIG)) {
-        const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'gi');
-        stripped = stripped.replace(pattern, '');
+    for (const [flag, config] of Object.entries(FLAG_CONFIG)) {
+        if (config.type === 'boolean') {
+            const pattern = new RegExp(`--${flag}(?=\\s|$)`, 'gi');
+            stripped = stripped.replace(pattern, '');
+        } else {
+            const pattern = new RegExp(`--${flag}\\s+(?:"([^"]+)"|'([^']+)'|(\\S+))`, 'gi');
+            stripped = stripped.replace(pattern, '');
+        }
     }
     return stripped.replace(/  +/g, ' ').trim();
 }

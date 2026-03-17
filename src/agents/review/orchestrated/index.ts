@@ -64,9 +64,13 @@ export async function runOrchestratedReview(
     // Extract changed files and user instructions
     const changedFiles = extractChangedFiles(context.diff);
     const userInstructions = extractUserInstructions(context);
-    const contextHints = userInstructions
+    let contextHints = userInstructions
         ? `User instructions: ${userInstructions}`
         : "No specific instructions — do a thorough review of your domain.";
+
+    if (context.incrementalDiff) {
+        contextHints += `\n\nThis is an **incremental re-review**. The diff shows only changes since commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`. Prioritize the new changes, but if you spot bugs in surrounding code during investigation, flag them too — just don't proactively hunt through unchanged files. Use \`read_files\` and \`grep\` for targeted investigation; use \`get_file_diff\` only when you need the full scope of a file's changes.`;
+    }
 
     console.log(`\n📋 Changed files (${changedFiles.length}): ${changedFiles.join(", ")}`);
     if (userInstructions) {
@@ -128,6 +132,10 @@ export async function runOrchestratedReview(
     console.log("\n::group::📝 Synthesizer: combining findings");
     console.log("::endgroup::");
 
+    const reviewScope = context.incrementalDiff
+        ? `This was an **incremental re-review** — the diff focused on changes since commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`, though reviewers may have inspected full file diffs for additional context.`
+        : `This was a **full review** of all changes in the PR.`;
+
     const synthesizerMessage = `Here are the findings from the four specialist reviewers:
 
 ## 🐛 Bugs Review
@@ -141,6 +149,8 @@ ${perfSummary}
 
 ## 🧹 Code Quality Review
 ${cqSummary}
+
+${reviewScope}
 
 Combine these into a unified review summary and submit it using submit_review.`;
 
