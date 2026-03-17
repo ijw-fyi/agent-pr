@@ -128,6 +128,10 @@ export async function runOrchestratedReview(
     console.log("\n::group::📝 Synthesizer: combining findings");
     console.log("::endgroup::");
 
+    const reviewScope = context.incrementalDiff
+        ? `This was an **incremental re-review** — the diff focused on changes since commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`, though reviewers may have inspected full file diffs for additional context.`
+        : `This was a **full review** of all changes in the PR.`;
+
     const synthesizerMessage = `Here are the findings from the four specialist reviewers:
 
 ## 🐛 Bugs Review
@@ -141,6 +145,8 @@ ${perfSummary}
 
 ## 🧹 Code Quality Review
 ${cqSummary}
+
+${reviewScope}
 
 Combine these into a unified review summary and submit it using submit_review.`;
 
