@@ -237,12 +237,32 @@ async function getConversation(
 /**
  * Get the authenticated bot's GitHub login
  */
+// Cache: safe because this runs in a single-use GitHub Actions process
+let resolvedBotLogin: string | null = null;
+
 async function getBotLogin(): Promise<string> {
+    if (resolvedBotLogin !== null) return resolvedBotLogin;
+
+    // Try GET /user first (works with user tokens / PATs)
     try {
         const { data: currentUser } = await octokit.rest.users.getAuthenticated();
-        return currentUser.login;
+        console.log(`Bot login resolved via /user: ${currentUser.login}`);
+        resolvedBotLogin = currentUser.login;
+        return resolvedBotLogin;
     } catch {
-        return "unknown";
+        // GET /user fails with installation tokens (GITHUB_TOKEN) — try GET /app
+    }
+
+    // Fallback: GET /app works with installation tokens, returns app slug
+    try {
+        const { data: app } = await octokit.rest.apps.getAuthenticated();
+        resolvedBotLogin = `${app.slug}[bot]`;
+        console.log(`Bot login resolved via /app: ${resolvedBotLogin}`);
+        return resolvedBotLogin;
+    } catch (error) {
+        console.warn("Could not resolve bot login via /user or /app:", error instanceof Error ? error.message : error);
+        resolvedBotLogin = "unknown";
+        return resolvedBotLogin;
     }
 }
 
@@ -359,25 +379,36 @@ export async function computeIncrementalDiff(context: PRContext): Promise<void> 
     }
 
     try {
+        // Debug: log bot identity and all authors for diagnostics
+        console.log(`Bot login: "${context.botLogin}"`);
+        const reviewAuthors = [...new Set(context.reviewSummaries.map(r => r.author))];
+        const commentAuthors = [...new Set(context.conversation.map(c => c.author))];
+        const inlineAuthors = [...new Set(context.existingComments.map(c => c.author))];
+        if (reviewAuthors.length) console.log(`Review authors: ${reviewAuthors.join(', ')}`);
+        if (commentAuthors.length) console.log(`Comment authors: ${commentAuthors.join(', ')}`);
+        if (inlineAuthors.length) console.log(`Inline comment authors: ${inlineAuthors.join(', ')}`);
+
+        const isBotAuthor = (author: string) => author === context.botLogin;
+
         // Find the latest bot activity across all three sources
         const botTimestamps: number[] = [];
 
         for (const r of context.reviewSummaries) {
-            if (r.author === context.botLogin && r.submittedAt) {
+            if (isBotAuthor(r.author) && r.submittedAt) {
                 const t = new Date(r.submittedAt).getTime();
                 if (!isNaN(t)) botTimestamps.push(t);
             }
         }
 
         for (const c of context.conversation) {
-            if (c.author === context.botLogin && c.createdAt) {
+            if (isBotAuthor(c.author) && c.createdAt) {
                 const t = new Date(c.createdAt).getTime();
                 if (!isNaN(t)) botTimestamps.push(t);
             }
         }
 
         for (const c of context.existingComments) {
-            if (c.author === context.botLogin && c.createdAt) {
+            if (isBotAuthor(c.author) && c.createdAt) {
                 const t = new Date(c.createdAt).getTime();
                 if (!isNaN(t)) botTimestamps.push(t);
             }
@@ -686,9 +717,12 @@ async function dismissPreviousReviews(
     prNumber: number
 ): Promise<void> {
     try {
-        // Get the authenticated user (the bot)
-        const { data: currentUser } = await octokit.rest.users.getAuthenticated();
-        const botLogin = currentUser.login;
+        // Resolve bot identity — skip dismissal if we can't identify ourselves
+        const botLogin = await getBotLogin();
+        if (botLogin === "unknown") {
+            console.warn("Could not resolve bot login — skipping dismiss to avoid affecting other bots' reviews");
+            return;
+        }
 
         // List all reviews on the PR
         const reviews = await octokit.paginate(octokit.rest.pulls.listReviews, {
@@ -706,7 +740,7 @@ async function dismissPreviousReviews(
         );
 
         if (reviewsToDismiss.length === 0) {
-            console.log(`No previous APPROVED/CHANGES_REQUESTED reviews found for ${botLogin}`);
+            console.log(`No previous APPROVED/CHANGES_REQUESTED reviews found (bot login: "${botLogin}")`);
             return;
         }
 
