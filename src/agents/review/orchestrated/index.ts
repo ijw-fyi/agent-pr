@@ -69,7 +69,7 @@ export async function runOrchestratedReview(
         : "No specific instructions — do a thorough review of your domain.";
 
     if (context.incrementalDiff) {
-        contextHints += `\n\nThis is an **incremental re-review**. The diff shows only changes since commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`. Focus on the new changes. Use \`read_files\` and \`grep\` for targeted investigation; use \`get_file_diff\` only when you need the full scope of a file's changes.`;
+        contextHints += `\n\nThis is an **incremental re-review**. The diff shows only changes since commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`. Prioritize the new changes, but if you spot bugs in surrounding code during investigation, flag them too — just don't proactively hunt through unchanged files. Use \`read_files\` and \`grep\` for targeted investigation; use \`get_file_diff\` only when you need the full scope of a file's changes.`;
     }
 
     console.log(`\n📋 Changed files (${changedFiles.length}): ${changedFiles.join(", ")}`);

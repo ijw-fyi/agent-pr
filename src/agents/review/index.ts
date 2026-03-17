@@ -272,7 +272,7 @@ ${changedFiles.map((f, i) => `${i + 1}. ${f}`).join("\n")}
     if (isIncremental && incrementalFiles) {
         message += `
 ## Your Task
-This is an **incremental re-review**. The diff above shows only changes since your last review (commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`). Files marked with ✱ have new changes. Focus your review on these new changes. Use \`read_files\` and \`grep\` for targeted investigation; use \`get_file_diff\` only when you need the full scope of a file's changes. Begin with Phase 0 to check your previous findings, then proceed through the review phases for the new changes.
+This is an **incremental re-review**. The diff above shows only changes since your last review (commit \`${context.lastReviewedCommitSha!.substring(0, 7)}\`). Files marked with ✱ have new changes. Prioritize the new changes, but if you spot bugs in surrounding code during investigation, flag them too — just don't proactively hunt through unchanged files. Use \`read_files\` and \`grep\` for targeted investigation; use \`get_file_diff\` only when you need the full scope of a file's changes. Begin with Phase 0 to check your previous findings, then proceed through the review phases for the new changes.
 `;
     } else {
         message += `
