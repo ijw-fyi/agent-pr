@@ -253,17 +253,33 @@ async function getBotLogin(): Promise<string> {
         // GET /user fails with installation tokens (GITHUB_TOKEN) — try GET /app
     }
 
-    // Fallback: GET /app works with installation tokens, returns app slug
+    // Fallback: GET /app works with JWT-based GitHub App tokens
     try {
         const { data: app } = await octokit.rest.apps.getAuthenticated();
         resolvedBotLogin = `${app.slug}[bot]`;
         console.log(`Bot login resolved via /app: ${resolvedBotLogin}`);
         return resolvedBotLogin;
-    } catch (error) {
-        console.warn("Could not resolve bot login via /user or /app:", error instanceof Error ? error.message : error);
-        resolvedBotLogin = "unknown";
+    } catch {
+        // GET /app requires a JWT — fails with installation tokens (GITHUB_TOKEN)
+    }
+
+    // Fallback: explicit override for custom GitHub App setups
+    if (process.env.PR_AGENT_BOT_LOGIN) {
+        resolvedBotLogin = process.env.PR_AGENT_BOT_LOGIN;
+        console.log(`Bot login from PR_AGENT_BOT_LOGIN env: ${resolvedBotLogin}`);
         return resolvedBotLogin;
     }
+
+    // Fallback: in GitHub Actions, the default GITHUB_TOKEN acts as github-actions[bot]
+    if (process.env.GITHUB_ACTIONS === "true") {
+        resolvedBotLogin = "github-actions[bot]";
+        console.log(`Bot login inferred from GITHUB_ACTIONS env: ${resolvedBotLogin}`);
+        return resolvedBotLogin;
+    }
+
+    console.warn("Could not resolve bot login via any method");
+    resolvedBotLogin = "unknown";
+    return resolvedBotLogin;
 }
 
 /**
