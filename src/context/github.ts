@@ -237,12 +237,18 @@ async function getConversation(
 /**
  * Get the authenticated bot's GitHub login
  */
+// Cache: safe because this runs in a single-use GitHub Actions process
+let resolvedBotLogin: string | null = null;
+
 async function getBotLogin(): Promise<string> {
+    if (resolvedBotLogin !== null) return resolvedBotLogin;
+
     // Try GET /user first (works with user tokens / PATs)
     try {
         const { data: currentUser } = await octokit.rest.users.getAuthenticated();
         console.log(`Bot login resolved via /user: ${currentUser.login}`);
-        return currentUser.login;
+        resolvedBotLogin = currentUser.login;
+        return resolvedBotLogin;
     } catch {
         // GET /user fails with installation tokens (GITHUB_TOKEN) — try GET /app
     }
@@ -250,12 +256,13 @@ async function getBotLogin(): Promise<string> {
     // Fallback: GET /app works with installation tokens, returns app slug
     try {
         const { data: app } = await octokit.rest.apps.getAuthenticated();
-        const login = `${app.slug}[bot]`;
-        console.log(`Bot login resolved via /app: ${login}`);
-        return login;
+        resolvedBotLogin = `${app.slug}[bot]`;
+        console.log(`Bot login resolved via /app: ${resolvedBotLogin}`);
+        return resolvedBotLogin;
     } catch (error) {
         console.warn("Could not resolve bot login via /user or /app:", error instanceof Error ? error.message : error);
-        return "unknown";
+        resolvedBotLogin = "unknown";
+        return resolvedBotLogin;
     }
 }
 
