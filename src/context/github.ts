@@ -703,9 +703,19 @@ async function dismissPreviousReviews(
     prNumber: number
 ): Promise<void> {
     try {
-        // Get the authenticated user (the bot)
-        const { data: currentUser } = await octokit.rest.users.getAuthenticated();
-        const botLogin = currentUser.login;
+        // Resolve bot identity — falls back to [bot] matching when GET /user fails
+        // (e.g., GITHUB_TOKEN is an installation token that can't call GET /user)
+        let botLogin = "unknown";
+        try {
+            const { data: currentUser } = await octokit.rest.users.getAuthenticated();
+            botLogin = currentUser.login;
+        } catch {
+            console.warn("Could not resolve bot login for dismiss, falling back to [bot] matching");
+        }
+
+        const isBotReview = (login: string | undefined) =>
+            login === botLogin ||
+            (botLogin === "unknown" && (login?.endsWith("[bot]") ?? false));
 
         // List all reviews on the PR
         const reviews = await octokit.paginate(octokit.rest.pulls.listReviews, {
@@ -718,12 +728,12 @@ async function dismissPreviousReviews(
         // Find reviews by the bot that are APPROVED or CHANGES_REQUESTED
         const reviewsToDismiss = reviews.filter(
             (review) =>
-                review.user?.login === botLogin &&
+                isBotReview(review.user?.login) &&
                 (review.state === "APPROVED" || review.state === "CHANGES_REQUESTED")
         );
 
         if (reviewsToDismiss.length === 0) {
-            console.log(`No previous APPROVED/CHANGES_REQUESTED reviews found for ${botLogin}`);
+            console.log(`No previous APPROVED/CHANGES_REQUESTED reviews found (bot login: "${botLogin}")`);
             return;
         }
 
