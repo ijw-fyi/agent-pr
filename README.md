@@ -214,6 +214,7 @@ Override configuration per-review by passing flags in your `/review` comment. Fl
 | `--recursion-limit <n>` | Max agent steps | `--recursion-limit 50` |
 | `--max-loc <n>` | Max lines of code to review | `--max-loc 5000` |
 | `--ignore <glob>` | Ignore files matching glob (repeatable) | `--ignore "migrations/*"` |
+| `--full` | Force full PR diff even on re-reviews (disables incremental diff) | `--full` |
 
 ### Model Aliases
 
@@ -236,6 +237,8 @@ Full OpenRouter model identifiers also work (e.g., `--model anthropic/claude-opu
 | `RECURSION_LIMIT` | `100` | Max agent steps (overridable via `--recursion-limit`) |
 | `PR_AGENT_MAX_LOC` | `2000` | Max diff LOC to review (overridable via `--max-loc`) |
 | `PR_AGENT_IGNORE` | - | Comma-separated glob patterns to ignore (overridable via `--ignore`) |
+| `PR_AGENT_FULL_DIFF` | `false` | Set to `true` to always use full PR diff (disables incremental diff on re-reviews; overridable via `--full`) |
+| `PR_AGENT_BOT_LOGIN` | - | Override bot identity for incremental diff detection and review dismissal. Set this if you use a custom GitHub App token (e.g., `my-app[bot]`) |
 | `REVIEW_MODE` | `single` | Review strategy: `single` or `orchestrated` |
 | `MCP_CONFIG` | DeepWiki enabled | JSON config for MCP servers |
 | `GEMINI_API_KEY` | - | Enables web search with Gemini |
@@ -325,6 +328,7 @@ Preferences are stored per-repository and persist across PRs.
 | `view_code_item` | View a specific function, class, or method by name (uses tree-sitter) |
 | `find_references` | Find all references to a symbol across the codebase (syntax-aware) |
 | `get_commit_diff` | Fetch the diff for a specific commit by SHA |
+| `get_file_diff` | Get the full PR diff for a specific file (useful during incremental re-reviews) |
 | `leave_comment` | Leave inline review comment on specific lines |
 | `submit_review` | Submit final review summary |
 | `search_web` | Search the web for documentation (requires `GEMINI_API_KEY`) |
