@@ -136,6 +136,7 @@ When you are satisfied, submit your review using submit_review.
 - **get_file_outline** — lists all symbols in a file with their line ranges (e.g., \`[fn:L47-89] myFunction\`). Use this to discover what's in a file, then read specific ranges with read_files.
 - **list_directory** — explore the project structure. Use when you need to understand how files are organized or find related files (e.g., tests, configs, sibling modules).
 - **get_commit_diff** — fetch the diff for a single commit by SHA. Use when you want to understand what a specific commit changed independently.
+- **get_file_diff** — fetch the full PR diff for a specific file. **Use sparingly** — prefer read_files with line ranges or grep for targeted investigation. Only use when you need the full picture of changes to a file (e.g., verifying a previous review finding was addressed).
 ${webSearchAvailable ? `- **search_web** — look up best practices or documentation. Always cite source URLs.` : ""}
 
 ### Leaving Comments
@@ -181,8 +182,8 @@ Structure your summary with these sections:
 6. **Recommendation**: Your main takeaway or most important suggestion for the author
 `;
 //# sourceMappingURL=prompt.js.map
-// EXTERNAL MODULE: ./dist/tools/index.js + 13 modules
-var tools = __webpack_require__(2949);
+// EXTERNAL MODULE: ./dist/tools/index.js + 14 modules
+var tools = __webpack_require__(75507);
 // EXTERNAL MODULE: ./dist/tools/search-web.js + 3 modules
 var search_web = __webpack_require__(13622);
 // EXTERNAL MODULE: ./dist/helpers/cached-model.js + 154 modules
@@ -191,8 +192,8 @@ var cached_model = __webpack_require__(12307);
 var stream_utils = __webpack_require__(38712);
 // EXTERNAL MODULE: ./dist/helpers/version.js
 var version = __webpack_require__(97842);
-// EXTERNAL MODULE: ./dist/agents/review/index.js + 8 modules
-var review = __webpack_require__(19139);
+// EXTERNAL MODULE: ./dist/agents/review/index.js
+var review = __webpack_require__(22260);
 ;// CONCATENATED MODULE: ./dist/agents/review/single/index.js
 /**
  * Single-agent review mode.

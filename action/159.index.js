@@ -23,8 +23,8 @@ var stream_utils = __webpack_require__(38712);
 var version = __webpack_require__(97842);
 // EXTERNAL MODULE: ./dist/helpers/overrides.js
 var overrides = __webpack_require__(60923);
-// EXTERNAL MODULE: ./dist/agents/review/index.js + 8 modules
-var review = __webpack_require__(19139);
+// EXTERNAL MODULE: ./dist/agents/review/index.js
+var review = __webpack_require__(22260);
 ;// CONCATENATED MODULE: ./dist/agents/review/orchestrated/prompt.js
 const SYNTHESIZER_PROMPT = `You are a review synthesizer. Four specialist reviewers have independently analyzed a pull request. Your job is to combine their findings into a single, coherent review summary and submit it.
 
@@ -52,13 +52,14 @@ You will receive summaries from up to four specialists:
 - Do NOT add your own findings — you are a synthesizer, not a reviewer
 - Do NOT re-investigate code — the specialists already did that
 - Keep the summary concise — the inline comments have the details
+- Mention the review scope at the top of your summary (whether this was a full review or an incremental re-review of changes since a specific commit)
 - You MUST call submit_review exactly once
 `;
 //# sourceMappingURL=prompt.js.map
 // EXTERNAL MODULE: ./node_modules/@langchain/core/tools.js
 var tools = __webpack_require__(79911);
-// EXTERNAL MODULE: ./dist/tools/index.js + 13 modules
-var dist_tools = __webpack_require__(2949);
+// EXTERNAL MODULE: ./dist/tools/index.js + 14 modules
+var dist_tools = __webpack_require__(75507);
 ;// CONCATENATED MODULE: ./dist/agents/review/orchestrated/subagents/shared.js
 /**
  * Shared utilities for orchestrated review sub-agents.
@@ -98,12 +99,8 @@ function buildSharedSystemContent(context) {
 
 ## PR Description
 ${context.description || "(No description provided)"}
-
-## Changed Files Diff
-\`\`\`diff
-${(0,review/* truncateDiff */.oX)(context.diff)}
-\`\`\`
 `;
+    content += (0,review/* renderDiffSection */.Xr)(context);
     const timeline = (0,review/* buildActivityTimeline */.Be)(context);
     if (timeline) {
         content += `
@@ -321,6 +318,7 @@ When all checklist items are resolved, provide your structured summary.
 - **find_references** — syntax-aware search (excludes comments/strings). Use for "where is X used?" questions.
 - **get_file_outline** — lists all symbols in a file with their line ranges. Use to discover what's in a file, then read specific ranges.
 - **list_directory** — explore the project structure.
+- **get_file_diff** — fetch the full PR diff for a specific file. **Use sparingly** — prefer read_files with line ranges or grep for targeted investigation. Only use when you need the full picture of changes to a file (e.g., verifying a previous review finding was addressed).
 
 ## IMPORTANT
 - You MUST do a **full bug sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.
@@ -422,6 +420,7 @@ When all checklist items are resolved, provide your structured summary.
 - **find_references** — syntax-aware search (excludes comments/strings). Use for "where is X used?" questions.
 - **get_file_outline** — lists all symbols in a file with their line ranges. Use to discover what's in a file, then read specific ranges.
 - **list_directory** — explore the project structure.
+- **get_file_diff** — fetch the full PR diff for a specific file. **Use sparingly** — prefer read_files with line ranges or grep for targeted investigation. Only use when you need the full picture of changes to a file (e.g., verifying a previous review finding was addressed).
 
 ## IMPORTANT
 - You MUST do a **full security sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.
@@ -522,6 +521,7 @@ When all checklist items are resolved, provide your structured summary.
 - **find_references** — syntax-aware search (excludes comments/strings). Use for "where is X used?" questions.
 - **get_file_outline** — lists all symbols in a file with their line ranges. Use to discover what's in a file, then read specific ranges.
 - **list_directory** — explore the project structure.
+- **get_file_diff** — fetch the full PR diff for a specific file. **Use sparingly** — prefer read_files with line ranges or grep for targeted investigation. Only use when you need the full picture of changes to a file (e.g., verifying a previous review finding was addressed).
 
 ## IMPORTANT
 - You MUST do a **full performance sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.
@@ -647,6 +647,7 @@ When all checklist items are resolved, provide your structured summary.
 - **find_references** — syntax-aware search (excludes comments/strings). Use for "where is X used?" questions.
 - **get_file_outline** — lists all symbols in a file with their line ranges. Use to discover what's in a file, then read specific ranges.
 - **list_directory** — explore the project structure.
+- **get_file_diff** — fetch the full PR diff for a specific file. **Use sparingly** — prefer read_files with line ranges or grep for targeted investigation. Only use when you need the full picture of changes to a file (e.g., verifying a previous review finding was addressed).
 
 ## IMPORTANT
 - You MUST do a **full code quality sweep** across ALL assigned files. The context hints from the orchestrator are additive guidance to help you prioritize — they do NOT restrict your scope.
@@ -721,9 +722,12 @@ async function runOrchestratedReview(context, recursionLimit) {
     // Extract changed files and user instructions
     const changedFiles = (0,review/* extractChangedFiles */.hG)(context.diff);
     const userInstructions = extractUserInstructions(context);
-    const contextHints = userInstructions
+    let contextHints = userInstructions
         ? `User instructions: ${userInstructions}`
         : "No specific instructions — do a thorough review of your domain.";
+    if (context.incrementalDiff) {
+        contextHints += `\n\nThis is an **incremental re-review**. The diff shows only changes since commit \`${context.lastReviewedCommitSha.substring(0, 7)}\`. Prioritize the new changes, but if you spot bugs in surrounding code during investigation, flag them too — just don't proactively hunt through unchanged files. Use \`read_files\` and \`grep\` for targeted investigation; use \`get_file_diff\` only when you need the full scope of a file's changes.`;
+    }
     console.log(`\n📋 Changed files (${changedFiles.length}): ${changedFiles.join(", ")}`);
     if (userInstructions) {
         console.log(`📝 User instructions: ${userInstructions}`);
@@ -748,6 +752,9 @@ async function runOrchestratedReview(context, recursionLimit) {
     // --- Synthesizer: combine findings and submit review ---
     console.log("\n::group::📝 Synthesizer: combining findings");
     console.log("::endgroup::");
+    const reviewScope = context.incrementalDiff
+        ? `This was an **incremental re-review** — the diff focused on changes since commit \`${context.lastReviewedCommitSha.substring(0, 7)}\`, though reviewers may have inspected full file diffs for additional context.`
+        : `This was a **full review** of all changes in the PR.`;
     const synthesizerMessage = `Here are the findings from the four specialist reviewers:
 
 ## 🐛 Bugs Review
@@ -761,6 +768,8 @@ ${perfSummary}
 
 ## 🧹 Code Quality Review
 ${cqSummary}
+
+${reviewScope}
 
 Combine these into a unified review summary and submit it using submit_review.`;
     const { stepCount: synthSteps } = await (0,stream_utils/* streamWithBudget */.W)({

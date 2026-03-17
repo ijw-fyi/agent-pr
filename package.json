@@ -1,6 +1,6 @@
 {
     "name": "pr-review-agent",
-    "version": "2.0.0-next.1",
+    "version": "2.0.0-next.2",
     "description": "AI-powered PR review agent using LangChain and OpenRouter",
     "license": "MIT",
     "type": "module",
