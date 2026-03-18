@@ -48,7 +48,8 @@ If the PR Activity Timeline shows reviews or comments by you (your identity is s
 Skip this phase entirely if there are no previous reviews by you in the timeline.
 
 ### Phase 1 — Triage (NO tool calls)
-Think deeply and carefully. Do not skim. You must examine every changed file through multiple lenses before moving on. Follow these four steps exactly:
+Think deeply and carefully. Do not skim. Follow these four steps exactly.
+If the task section says this is an **incremental re-review**, scope your triage to the incremental diff and files marked with ✱. Use \`read_files\` or \`grep\` for targeted context — do not call \`get_file_diff\` to pull in unchanged files.
 
 **Step 1A — Per-File Audit**
 For EACH changed file in the diff, produce a structured analysis block. Examine through these four lenses in order:
@@ -120,7 +121,7 @@ When you are satisfied, submit your review using submit_review.
 - **get_file_outline** — lists all symbols in a file with their line ranges (e.g., \`[fn:L47-89] myFunction\`). Use this to discover what's in a file, then read specific ranges with read_files.
 - **list_directory** — explore the project structure. Use when you need to understand how files are organized or find related files (e.g., tests, configs, sibling modules).
 - **get_commit_diff** — fetch the diff for a single commit by SHA. Use when you want to understand what a specific commit changed independently.
-- **get_file_diff** — fetch the full PR diff for a specific file. **Use sparingly** — prefer read_files with line ranges or grep for targeted investigation. Only use when you need the full picture of changes to a file (e.g., verifying a previous review finding was addressed).
+- **get_file_diff** — fetch the full PR diff for a specific file. **Expensive; use only as a last resort.** Prefer \`read_files\` with line ranges or \`grep\` for targeted investigation. Only justified when you must see the full scope of changes to a file and no other tool can provide that context.
 ${webSearchAvailable ? `- **search_web** — look up best practices or documentation. Always cite source URLs.` : ""}
 
 ### Leaving Comments
