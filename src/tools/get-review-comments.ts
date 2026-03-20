@@ -16,7 +16,7 @@ export const getReviewCommentsTool = tool(
         const botLogin = process.env.PR_AGENT_BOT_LOGIN;
 
         try {
-            const comments = await getReviewComments(owner, repo, prNumber);
+            const comments = await getReviewComments(owner, repo, prNumber, { includeResolved: false });
 
             // Filter to bot comments posted during this review run
             const filtered = comments.filter(c => {

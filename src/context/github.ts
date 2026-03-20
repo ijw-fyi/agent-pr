@@ -189,17 +189,36 @@ async function getResolvedThreads(
 export async function getReviewComments(
     owner: string,
     repo: string,
-    prNumber: number
+    prNumber: number,
+    options?: { includeResolved?: boolean }
 ): Promise<ReviewComment[]> {
-    const [{ data }, resolvedThreadIds] = await Promise.all([
-        octokit.rest.pulls.listReviewComments({
-            owner,
-            repo,
-            pull_number: prNumber,
-        }),
-        getResolvedThreads(owner, repo, prNumber),
-    ]);
+    const includeResolved = options?.includeResolved ?? true;
 
+    const commentsPromise = octokit.rest.pulls.listReviewComments({
+        owner,
+        repo,
+        pull_number: prNumber,
+    });
+
+    if (includeResolved) {
+        const [{ data }, resolvedThreadIds] = await Promise.all([
+            commentsPromise,
+            getResolvedThreads(owner, repo, prNumber),
+        ]);
+
+        return data.map((comment) => ({
+            id: comment.id,
+            author: comment.user?.login || "unknown",
+            body: comment.body,
+            path: comment.path,
+            line: comment.line || null,
+            createdAt: comment.created_at,
+            isResolved: resolvedThreadIds.has(comment.id),
+            inReplyToId: comment.in_reply_to_id || null,
+        }));
+    }
+
+    const { data } = await commentsPromise;
     return data.map((comment) => ({
         id: comment.id,
         author: comment.user?.login || "unknown",
@@ -207,7 +226,7 @@ export async function getReviewComments(
         path: comment.path,
         line: comment.line || null,
         createdAt: comment.created_at,
-        isResolved: resolvedThreadIds.has(comment.id),
+        isResolved: false,
         inReplyToId: comment.in_reply_to_id || null,
     }));
 }
