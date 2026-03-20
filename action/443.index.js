@@ -183,8 +183,8 @@ Structure your summary with these sections:
 6. **Recommendation**: Your main takeaway or most important suggestion for the author
 `;
 //# sourceMappingURL=prompt.js.map
-// EXTERNAL MODULE: ./dist/tools/index.js + 14 modules
-var tools = __webpack_require__(75507);
+// EXTERNAL MODULE: ./dist/tools/index.js + 15 modules
+var tools = __webpack_require__(30260);
 // EXTERNAL MODULE: ./dist/tools/search-web.js + 3 modules
 var search_web = __webpack_require__(13622);
 // EXTERNAL MODULE: ./dist/helpers/cached-model.js + 154 modules
