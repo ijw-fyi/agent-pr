@@ -186,30 +186,41 @@ async function getResolvedThreads(
 /**
  * Get existing review comments on the PR
  */
-async function getReviewComments(
+export async function getReviewComments(
     owner: string,
     repo: string,
-    prNumber: number
+    prNumber: number,
+    options?: { includeResolved?: boolean }
 ): Promise<ReviewComment[]> {
-    const [{ data }, resolvedThreadIds] = await Promise.all([
-        octokit.rest.pulls.listReviewComments({
-            owner,
-            repo,
-            pull_number: prNumber,
-        }),
-        getResolvedThreads(owner, repo, prNumber),
-    ]);
+    const includeResolved = options?.includeResolved ?? true;
 
-    return data.map((comment) => ({
+    const commentsPromise = octokit.rest.pulls.listReviewComments({
+        owner,
+        repo,
+        pull_number: prNumber,
+    });
+
+    const mapComment = (comment: Awaited<typeof commentsPromise>["data"][number], isResolved: boolean): ReviewComment => ({
         id: comment.id,
         author: comment.user?.login || "unknown",
         body: comment.body,
         path: comment.path,
         line: comment.line || null,
         createdAt: comment.created_at,
-        isResolved: resolvedThreadIds.has(comment.id),
+        isResolved,
         inReplyToId: comment.in_reply_to_id || null,
-    }));
+    });
+
+    if (includeResolved) {
+        const [{ data }, resolvedThreadIds] = await Promise.all([
+            commentsPromise,
+            getResolvedThreads(owner, repo, prNumber),
+        ]);
+        return data.map((c) => mapComment(c, resolvedThreadIds.has(c.id)));
+    }
+
+    const { data } = await commentsPromise;
+    return data.map((c) => mapComment(c, false));
 }
 
 /**
