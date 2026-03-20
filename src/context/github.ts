@@ -200,35 +200,27 @@ export async function getReviewComments(
         pull_number: prNumber,
     });
 
-    if (includeResolved) {
-        const [{ data }, resolvedThreadIds] = await Promise.all([
-            commentsPromise,
-            getResolvedThreads(owner, repo, prNumber),
-        ]);
-
-        return data.map((comment) => ({
-            id: comment.id,
-            author: comment.user?.login || "unknown",
-            body: comment.body,
-            path: comment.path,
-            line: comment.line || null,
-            createdAt: comment.created_at,
-            isResolved: resolvedThreadIds.has(comment.id),
-            inReplyToId: comment.in_reply_to_id || null,
-        }));
-    }
-
-    const { data } = await commentsPromise;
-    return data.map((comment) => ({
+    const mapComment = (comment: Awaited<typeof commentsPromise>["data"][number], isResolved: boolean): ReviewComment => ({
         id: comment.id,
         author: comment.user?.login || "unknown",
         body: comment.body,
         path: comment.path,
         line: comment.line || null,
         createdAt: comment.created_at,
-        isResolved: false,
+        isResolved,
         inReplyToId: comment.in_reply_to_id || null,
-    }));
+    });
+
+    if (includeResolved) {
+        const [{ data }, resolvedThreadIds] = await Promise.all([
+            commentsPromise,
+            getResolvedThreads(owner, repo, prNumber),
+        ]);
+        return data.map((c) => mapComment(c, resolvedThreadIds.has(c.id)));
+    }
+
+    const { data } = await commentsPromise;
+    return data.map((c) => mapComment(c, false));
 }
 
 /**
