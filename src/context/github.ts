@@ -186,7 +186,7 @@ async function getResolvedThreads(
 /**
  * Get existing review comments on the PR
  */
-async function getReviewComments(
+export async function getReviewComments(
     owner: string,
     repo: string,
     prNumber: number

@@ -58,6 +58,12 @@ export async function runOrchestratedReview(
     console.log(`Recursion Limit: ${effectiveRecursionLimit} (per sub-agent)`);
     console.log("::endgroup::");
 
+    // Ensure bot login and review start time are available to tools for dedup
+    process.env.REVIEW_START_TIME = new Date().toISOString();
+    if (context.botLogin) {
+        process.env.PR_AGENT_BOT_LOGIN = context.botLogin;
+    }
+
     // Build shared system content once — cached and reused across all sub-agents
     const sharedSystemContent = buildSharedSystemContent(context);
 
