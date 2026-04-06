@@ -6,7 +6,7 @@
  * the cleaned text with flags stripped.
  */
 
-const FLAG_CONFIG: Record<string, { envVar: string; type: 'number' | 'string' | 'boolean'; multi?: boolean }> = {
+const FLAG_CONFIG: Record<string, { envVar: string; type: 'number' | 'string' | 'boolean'; multi?: boolean; value?: string }> = {
     'budget':          { envVar: 'AGENT_PR_BUDGET',  type: 'number' },
     'model':           { envVar: 'MODEL',            type: 'string' },
     'recursion-limit': { envVar: 'RECURSION_LIMIT',  type: 'number' },
@@ -14,6 +14,8 @@ const FLAG_CONFIG: Record<string, { envVar: string; type: 'number' | 'string' | 
     'ignore':          { envVar: 'PR_AGENT_IGNORE',  type: 'string', multi: true },
     'mode':            { envVar: 'REVIEW_MODE',      type: 'string' },
     'full':            { envVar: 'PR_AGENT_FULL_DIFF', type: 'boolean' },
+    'single':          { envVar: 'REVIEW_MODE',      type: 'boolean', value: 'single' },
+    'multi':           { envVar: 'REVIEW_MODE',      type: 'boolean', value: 'orchestrated' },
 };
 
 const MODEL_ALIASES: Record<string, string> = {
@@ -44,8 +46,9 @@ export function parseCommandOverrides(commentBody: string): ParsedOverrides {
             // Boolean flags: --flag with no value
             const pattern = new RegExp(`--${flag}(?=\\s|$)`, 'gi');
             if (pattern.test(stripped)) {
-                overrides[config.envVar] = 'true';
-                console.log(`🔧 Override: --${flag} → ${config.envVar}=true`);
+                const flagValue = config.value ?? 'true';
+                overrides[config.envVar] = flagValue;
+                console.log(`🔧 Override: --${flag} → ${config.envVar}=${flagValue}`);
                 stripped = stripped.replace(pattern, '');
             }
         } else if (config.multi) {
