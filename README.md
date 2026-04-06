@@ -215,6 +215,8 @@ Override configuration per-review by passing flags in your `/review` comment. Fl
 | `--max-loc <n>` | Max lines of code to review | `--max-loc 5000` |
 | `--ignore <glob>` | Ignore files matching glob (repeatable) | `--ignore "migrations/*"` |
 | `--full` | Force full PR diff even on re-reviews (disables incremental diff) | `--full` |
+| `--single` | Use single-agent review mode | `--single` |
+| `--multi` | Use multi-agent (orchestrated) review mode | `--multi` |
 
 ### Model Aliases
 
