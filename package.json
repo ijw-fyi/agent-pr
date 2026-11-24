@@ -20,7 +20,7 @@
         "@langchain/core": "^0.3.58",
         "@langchain/langgraph": "^0.2.0",
         "@langchain/openai": "^0.3.0",
-        "@modelcontextprotocol/sdk": "^1.0.0",
+        "@modelcontextprotocol/sdk": "^1.32.2",
         "@types/glob": "^8.1.0",
         "glob": "^13.0.0",
         "minimatch": "^10.2.4",
