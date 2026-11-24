@@ -22,7 +22,7 @@
         "@langchain/openai": "^0.3.0",
         "@modelcontextprotocol/sdk": "^1.0.0",
         "@types/glob": "^8.1.0",
-        "glob": "^13.0.0",
+        "glob": "^14.0.6",
         "minimatch": "^10.2.4",
         "safe-regex2": "^5.0.0",
         "simple-git": "^3.30.0",
